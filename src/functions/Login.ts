@@ -509,15 +509,15 @@ export class Login {
 
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
         
-        // 添加超时机制 - 最多等待60秒（增加超时时间以适应2FA场景）
+        // 添加超时机制 - 最多等待30秒（减少等待时间以避免长时间卡死）
         const startTime = Date.now()
-        const timeout = 60000 // 60 seconds
+        const timeout = 30000 // 30 seconds
         
         // eslint-disable-next-line no-constant-condition
         while (true) {
             // 检查是否超时
             if (Date.now() - startTime > timeout) {
-                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'OAuth authorization timeout after 60 seconds', 'warn')
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'OAuth authorization timeout after 30 seconds', 'warn')
                 throw new Error('OAuth authorization timeout - user interaction required')
             }
             
@@ -528,7 +528,7 @@ export class Login {
                 break
             }
 
-            await this.bot.utils.wait(2000) // 减少等待间隔从5秒到2秒
+            await this.bot.utils.wait(2000) // 减少等待间隔从5秒到2秒，提高响应速度
         }
 
         const body = new URLSearchParams()

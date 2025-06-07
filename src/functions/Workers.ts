@@ -221,7 +221,14 @@ export class Workers {
 
                     // Unsupported types
                     default:
-                        this.bot.log(this.bot.isMobile, 'ACTIVITY', `Skipped activity "${activity.title}" | Reason: Unsupported type: "${activity.promotionType}"!`, 'warn')
+                        // 检查是否为空字符串类型
+                        if (!activity.promotionType || activity.promotionType.trim() === '') {
+                            this.bot.log(this.bot.isMobile, 'ACTIVITY', `Skipped activity "${activity.title}" | Reason: Empty promotion type detected. This may be a new activity type or data parsing issue.`, 'warn')
+                            // 记录更多调试信息
+                            this.bot.log(this.bot.isMobile, 'ACTIVITY-DEBUG', `Activity details - Name: "${activity.name}", OfferId: "${activity.offerId}", ActivityType: "${activity.activityType}", PromotionSubtype: "${activity.promotionSubtype}"`, 'warn')
+                        } else {
+                            this.bot.log(this.bot.isMobile, 'ACTIVITY', `Skipped activity "${activity.title}" | Reason: Unsupported type: "${activity.promotionType}"!`, 'warn')
+                        }
                         break
                 }
 

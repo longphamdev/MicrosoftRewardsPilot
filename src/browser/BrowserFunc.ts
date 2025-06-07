@@ -115,7 +115,10 @@ export default class BrowserFunc {
         try {
             // 检查主页是否已关闭
             if (this.bot.homePage.isClosed()) {
-                throw new Error('Homepage has been closed')
+                this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Homepage was closed, reopening...', 'warn')
+                // 重新打开主页而不是抛出错误
+                this.bot.homePage = await this.bot.homePage.context().newPage()
+                await this.goHome(this.bot.homePage)
             }
 
             const dashboardURL = new URL(this.bot.config.baseURL)

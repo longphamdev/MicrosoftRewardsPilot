@@ -15,7 +15,7 @@ import Activities from './functions/Activities'
 
 import { Account } from './interface/Account'
 import Axios from './util/Axios'
-import { TwoFactorAuthRequiredError } from './interface/Errors'
+import { TwoFactorAuthRequiredError, AccountLockedError } from './interface/Errors'
 
 
 // Main bot class
@@ -479,6 +479,11 @@ export class MicrosoftRewardsBot {
                 log(this.isMobile, 'MOBILE-OAUTH', `OAuth timeout for ${account.email}: ${error.message}`, 'warn')
                 log(this.isMobile, 'MOBILE-OAUTH', 'Mobile task requires user interaction - skipping', 'warn')
                 throw new TwoFactorAuthRequiredError('Mobile OAuth requires user interaction - skipping mobile tasks for this account')
+            }
+            
+            // 特殊处理2FA相关错误，直接重新抛出
+            if (error instanceof TwoFactorAuthRequiredError || error instanceof AccountLockedError) {
+                throw error
             }
             
             throw error
