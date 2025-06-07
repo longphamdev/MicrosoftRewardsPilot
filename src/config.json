@@ -1,0 +1,66 @@
+{
+    "baseURL": "https://rewards.bing.com",
+    "sessionPath": "sessions",
+    "headless": true,
+    "parallel": false,
+    "runOnZeroPoints": false,
+    "clusters": 1,
+    "saveFingerprint": {
+        "mobile": true,
+        "desktop": true
+    },
+    "workers": {
+        "doDailySet": true,
+        "doMorePromotions": true,
+        "doPunchCards": true,
+        "doDesktopSearch": true,
+        "doMobileSearch": true,
+        "doDailyCheckIn": true,
+        "doReadToEarn": true
+    },
+    "searchOnBingLocalQueries": false,
+    "globalTimeout": "60min",
+    "searchSettings": {
+        "useGeoLocaleQueries": true,
+        "scrollRandomResults": true,
+        "clickRandomResults": true,
+        "searchDelay": {
+            "min": "45s",
+            "max": "2.5min"
+        },
+        "retryMobileSearchAmount": 2,
+        "multiLanguage": {
+            "enabled": true,
+            "autoDetectLocation": true,
+            "fallbackLanguage": "en",
+            "supportedLanguages": ["ja", "en", "zh-CN", "ko", "de", "fr", "es"]
+        },
+        "autoTimezone": {
+            "enabled": true,
+            "setOnStartup": true,
+            "validateMatch": true,
+            "logChanges": true
+        },
+        "humanBehavior": {
+            "typingErrorRate": 0.12,
+            "thinkingPauseEnabled": true,
+            "randomScrollEnabled": true,
+            "clickRandomEnabled": true,
+            "timeBasedDelayEnabled": true
+        }
+    },
+    "logExcludeFunc": [
+        "SEARCH-CLOSE-TABS"
+    ],
+    "webhookLogExcludeFunc": [
+        "SEARCH-CLOSE-TABS"
+    ],
+    "proxy": {
+        "proxyGoogleTrends": true,
+        "proxyBingTerms": true
+    },
+    "webhook": {
+        "enabled": false,
+        "url": ""
+    }
+}
