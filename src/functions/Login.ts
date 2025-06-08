@@ -439,13 +439,27 @@ export class Login {
         const targetHostname = 'rewards.bing.com'
         const targetPathname = '/'
 
-        // eslint-disable-next-line no-constant-condition
+        // 添加超时机制，最多等待30秒
+        const startTime = Date.now()
+        const timeout = 30000 // 30 seconds
+        
         while (true) {
+            // 检查是否超时
+            if (Date.now() - startTime > timeout) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Timeout waiting for rewards portal redirect, attempting to navigate manually', 'warn')
+                // 手动跳转到rewards页面
+                await page.goto('https://rewards.bing.com/')
+                break
+            }
+            
             await this.bot.browser.utils.tryDismissAllMessages(page)
             const currentURL = new URL(page.url())
             if (currentURL.hostname === targetHostname && currentURL.pathname === targetPathname) {
                 break
             }
+            
+            // 添加短暂等待，避免无限循环过于频繁
+            await this.bot.utils.wait(1000)
         }
 
         // Wait for login to complete
