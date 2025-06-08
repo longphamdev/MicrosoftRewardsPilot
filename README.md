@@ -1,5 +1,10 @@
 <div align="center">
 
+<!-- 语言切换 / Language Switch / 言語切替 -->
+**[🇨🇳 中文](README.md)** | **[🇺🇸 English](README_EN.md)** | **[🇯🇵 日本語](README_JA.md)**
+
+---
+
 # 🎯 MicrosoftRewardsPilot 自动化脚本
 
 **智能化 Microsoft Rewards 积分自动获取工具**
