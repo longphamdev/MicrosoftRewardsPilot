@@ -130,8 +130,14 @@ export default class BrowserFunc {
                 await this.goHome(this.bot.homePage)
             }
 
-            // Reload the page to get new data
-            await this.bot.homePage.reload({ waitUntil: 'domcontentloaded' })
+            // Reload the page to get new data with timeout
+            this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Reloading page to fetch fresh dashboard data...')
+            await Promise.race([
+                this.bot.homePage.reload({ waitUntil: 'domcontentloaded' }),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Page reload timeout after 30 seconds')), 30000)
+                )
+            ])
 
             const scriptContent = await this.bot.homePage.evaluate(() => {
                 const scripts = Array.from(document.querySelectorAll('script'))
@@ -160,6 +166,7 @@ export default class BrowserFunc {
                 throw this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Unable to parse dashboard script', 'error')
             }
 
+            this.bot.log(this.bot.isMobile, 'GET-DASHBOARD-DATA', 'Successfully fetched dashboard data')
             return dashboardData
 
         } catch (error) {
