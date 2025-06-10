@@ -62,7 +62,16 @@ export class Search extends Workers {
         })
 
         // Loop over search queries
+        const searchStartTime = Date.now()
+        const searchTimeoutMs = 20 * 60 * 1000 // 20分钟总体超时
+        
         for (let i = 0; i < queries.length; i++) {
+            // 检查总体超时
+            if (Date.now() - searchStartTime > searchTimeoutMs) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search process timeout after 20 minutes, stopping searches', 'warn')
+                break
+            }
+            
             const query = queries[i] as string
 
             this.bot.log(this.bot.isMobile, 'SEARCH-BING', `${missingPoints} Points Remaining | Query: ${query}`)
@@ -484,7 +493,22 @@ export class Search extends Workers {
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING-DELAY', `Waiting ${Math.round(delayMs/1000)}s before next search...`)
                 await this.bot.utils.wait(delayMs)
 
-                return await this.bot.browser.func.getSearchPoints()
+                // 获取搜索点数，添加超时保护
+                try {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Fetching updated search points...')
+                    const searchPoints = await Promise.race([
+                        this.bot.browser.func.getSearchPoints(),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('getSearchPoints timeout after 20 seconds')), 20000)
+                        )
+                    ]) as Counters
+                    
+                    return searchPoints
+                } catch (pointsError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Failed to get search points: ${pointsError}`, 'warn')
+                    // 如果获取点数失败，返回空的计数器，让主循环继续
+                    return await this.getEmptySearchCounters()
+                }
 
             } catch (error) {
                 // 检查是否是浏览器关闭相关的错误
