@@ -86,7 +86,11 @@ services:
   "parallel": true,           // ⚡ タスクを並列実行
   "clusters": 1,              // 🔄 クラスター数
   "globalTimeout": "45min",   // ⏱️ グローバルタイムアウト時間
-  "runOnZeroPoints": false    // 🚫 ゼロポイント時は実行しない
+  "runOnZeroPoints": false,   // 🚫 ゼロポイント時は実行しない
+  "accountDelay": {           // 👥 アカウント間の遅延時間
+    "min": "5min",            // ⏳ 最小5分間隔
+    "max": "15min"            // ⏳ 最大15分間隔
+  }
 }
 ```
 
@@ -270,6 +274,10 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
   "saveFingerprint": {
     "mobile": true,
     "desktop": true
+  },
+  "accountDelay": {
+    "min": "5min",
+    "max": "15min"
   },
   "workers": {
     "doDailySet": true,

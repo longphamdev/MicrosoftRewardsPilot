@@ -86,7 +86,11 @@ services:
   "parallel": true,           // ⚡ 并行执行任务
   "clusters": 1,              // 🔄 集群数量
   "globalTimeout": "45min",   // ⏱️ 全局超时时间
-  "runOnZeroPoints": false    // 🚫 零积分时不运行
+  "runOnZeroPoints": false,   // 🚫 零积分时不运行
+  "accountDelay": {           // 👥 多账户间隔时间
+    "min": "5min",            // ⏳ 最小间隔5分钟
+    "max": "15min"            // ⏳ 最大间隔15分钟
+  }
 }
 ```
 
@@ -110,7 +114,7 @@ services:
     },
     "humanBehavior": {
       "typingErrorRate": 0.12,      // ✏️ 打字错误率
-      "thinkingPauseEnabled": true, // �� 思考暂停
+      "thinkingPauseEnabled": true, // 思考暂停
       "randomScrollEnabled": true   // 📜 随机滚动
     }
   }
@@ -270,6 +274,10 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
   "saveFingerprint": {
     "mobile": true,
     "desktop": true
+  },
+  "accountDelay": {
+    "min": "5min",
+    "max": "15min"
   },
   "workers": {
     "doDailySet": true,

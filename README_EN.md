@@ -86,7 +86,11 @@ services:
   "parallel": true,           // ⚡ Execute tasks in parallel
   "clusters": 1,              // 🔄 Number of clusters
   "globalTimeout": "45min",   // ⏱️ Global timeout duration
-  "runOnZeroPoints": false    // 🚫 Don't run when zero points available
+  "runOnZeroPoints": false,   // 🚫 Don't run when zero points available
+  "accountDelay": {           // 👥 Delay between accounts
+    "min": "5min",            // ⏳ Minimum 5 minutes delay
+    "max": "15min"            // ⏳ Maximum 15 minutes delay
+  }
 }
 ```
 
@@ -270,6 +274,10 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
   "saveFingerprint": {
     "mobile": true,
     "desktop": true
+  },
+  "accountDelay": {
+    "min": "5min",
+    "max": "15min"
   },
   "workers": {
     "doDailySet": true,
