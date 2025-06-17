@@ -18,17 +18,21 @@
         "doDailyCheckIn": true,
         "doReadToEarn": true
     },
-    "searchOnBingLocalQueries": false,
-    "globalTimeout": "60min",
+    "searchOnBingLocalQueries": true,
+    "globalTimeout": "90min",
+    "accountDelay": {
+        "min": "5min",
+        "max": "15min"
+    },
     "searchSettings": {
         "useGeoLocaleQueries": true,
         "scrollRandomResults": true,
         "clickRandomResults": true,
         "searchDelay": {
-            "min": "45s",
-            "max": "2.5min"
+            "min": "30s",
+            "max": "90s"
         },
-        "retryMobileSearchAmount": 2,
+        "retryMobileSearchAmount": 0,
         "multiLanguage": {
             "enabled": true,
             "autoDetectLocation": true,
