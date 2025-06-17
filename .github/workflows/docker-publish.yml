@@ -27,4 +27,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/microsoftrewardspilot:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/microsoftrewardspilot:latest
+            ghcr.io/${{ github.repository_owner }}/microsoftrewardspilot:${{ github.sha }}
