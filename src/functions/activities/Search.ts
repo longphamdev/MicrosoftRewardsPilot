@@ -785,8 +785,33 @@ export class Search extends Workers {
                     const index = Math.floor(Math.random() * Math.random() * elements.length)
                     const element = elements[index]
                     if (element) {
-                        await element.click()
-                        return true
+                        try {
+                            // 首先尝试正常点击
+                            await element.click({ timeout: 2000 })
+                            return true
+                        } catch (clickError) {
+                            // 如果正常点击失败，尝试强制点击
+                            try {
+                                await element.click({ force: true, timeout: 2000 })
+                                this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', 'Used force click for mobile search result')
+                                return true
+                            } catch (forceClickError) {
+                                // 如果强制点击也失败，使用JavaScript点击
+                                try {
+                                    await page.evaluate(({ sel, idx }: { sel: string, idx: number }) => {
+                                        const els = document.querySelectorAll(sel)
+                                        if (els[idx]) {
+                                            (els[idx] as HTMLElement).click()
+                                        }
+                                    }, { sel: selector, idx: index })
+                                    this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', 'Used JavaScript click for mobile search result')
+                                    return true
+                                } catch (jsClickError) {
+                                    // 继续尝试下一个选择器
+                                    continue
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -970,7 +995,55 @@ export class Search extends Workers {
 
     private async clickRandomLink(page: Page) {
         try {
-            await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { }) // Since we don't really care if it did it or not
+            // 尝试多种方式点击搜索结果
+            const clickAttempts = [
+                // 方法1：强制点击（忽略拦截元素）
+                async () => {
+                    await page.click('#b_results .b_algo h2 a', { 
+                        timeout: 2000, 
+                        force: true  // 强制点击，即使被其他元素遮挡
+                    })
+                },
+                // 方法2：使用JavaScript直接点击
+                async () => {
+                    await page.evaluate(() => {
+                        const link = document.querySelector('#b_results .b_algo h2 a') as HTMLElement
+                        if (link) {
+                            link.click()
+                        }
+                    })
+                },
+                // 方法3：尝试点击可见的搜索结果
+                async () => {
+                    const links = await page.$$('#b_results .b_algo h2 a')
+                    for (const link of links) {
+                        const isVisible = await link.isVisible()
+                        if (isVisible) {
+                            await link.click({ timeout: 1000 })
+                            break
+                        }
+                    }
+                }
+            ]
+
+            // 尝试不同的点击方法
+            let clicked = false
+            for (const attemptClick of clickAttempts) {
+                try {
+                    await attemptClick()
+                    clicked = true
+                    this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'Successfully clicked search result')
+                    break
+                } catch (error) {
+                    // 继续尝试下一个方法
+                    continue
+                }
+            }
+
+            if (!clicked) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'Failed to click any search result', 'warn')
+                return
+            }
 
             // Only used if the browser is not the edge browser (continue on Edge popup)
             await this.closeContinuePopup(page)
