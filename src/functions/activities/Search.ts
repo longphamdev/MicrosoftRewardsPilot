@@ -95,7 +95,11 @@ export class Search extends Workers {
             // Only for mobile searches
             if (maxLoop > 5 && this.bot.isMobile) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search didn\'t gain point for 5 iterations, likely bad User-Agent', 'warn')
-                break
+                // 不要立即退出，而是等待更长时间后继续尝试
+                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Waiting 3 minutes before continuing mobile search...', 'warn')
+                await this.bot.utils.wait(180000) // 等待3分钟
+                maxLoop = 0 // 重置计数器
+                continue // 继续搜索而不是break
             }
 
             // If we didn't gain points for 10 iterations, assume it's stuck
@@ -104,11 +108,6 @@ export class Search extends Workers {
                 maxLoop = 0 // Reset to 0 so we can retry with related searches below
                 break
             }
-        }
-
-        // Only for mobile searches
-        if (missingPoints > 0 && this.bot.isMobile) {
-            return
         }
 
         // If we still got remaining search queries, generate extra ones
@@ -607,7 +606,13 @@ export class Search extends Workers {
      * 增强的人类行为模拟
      */
     private async simulateHumanBehavior(page: Page): Promise<void> {
-        // 随机行为选择
+        // 移动端特殊处理
+        if (this.bot.isMobile) {
+            await this.simulateMobileUserBehavior(page)
+            return
+        }
+        
+        // 桌面端原有逻辑
         const behaviors = ['scroll', 'click', 'both', 'none']
         const selectedBehavior = behaviors[Math.floor(Math.random() * behaviors.length)]
         
@@ -641,6 +646,117 @@ export class Search extends Workers {
                 // 只是查看结果，不做任何操作
                 await this.bot.utils.wait(3000 + Math.random() * 2000)
                 break
+        }
+    }
+
+    /**
+     * 移动端专用的人类行为模拟
+     */
+    private async simulateMobileUserBehavior(page: Page): Promise<void> {
+        try {
+            // 模拟移动设备的触摸操作
+            const viewportHeight = await page.evaluate(() => window.innerHeight)
+            const viewportWidth = await page.evaluate(() => window.innerWidth)
+            
+            // 随机选择行为模式
+            const behaviorPattern = Math.random()
+            
+            if (behaviorPattern < 0.3) {
+                // 30% - 快速浏览模式
+                await this.bot.utils.wait(1000 + Math.random() * 1000)
+                
+                // 快速向下滑动
+                await page.mouse.move(viewportWidth / 2, viewportHeight * 0.8)
+                await page.mouse.down()
+                await page.mouse.move(viewportWidth / 2, viewportHeight * 0.2, { steps: 10 })
+                await page.mouse.up()
+                
+                await this.bot.utils.wait(500 + Math.random() * 500)
+                
+            } else if (behaviorPattern < 0.6) {
+                // 30% - 仔细阅读模式
+                await this.bot.utils.wait(2000 + Math.random() * 2000)
+                
+                // 缓慢滚动，模拟阅读
+                for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+                    const scrollDistance = viewportHeight * (0.3 + Math.random() * 0.4)
+                    await page.evaluate((distance) => {
+                        window.scrollBy({ top: distance, behavior: 'smooth' })
+                    }, scrollDistance)
+                    
+                    // 阅读停顿
+                    await this.bot.utils.wait(1500 + Math.random() * 2000)
+                }
+                
+            } else if (behaviorPattern < 0.8) {
+                // 20% - 点击搜索结果
+                if (this.bot.config.searchSettings.clickRandomResults) {
+                    await this.bot.utils.wait(1500 + Math.random() * 1500)
+                    
+                    // 尝试点击搜索结果
+                    const clicked = await this.clickMobileSearchResult(page)
+                    if (clicked) {
+                        // 在新页面停留一段时间
+                        await this.bot.utils.wait(5000 + Math.random() * 5000)
+                        
+                        // 返回搜索结果
+                        await page.goBack()
+                        await this.bot.utils.wait(1000 + Math.random() * 1000)
+                    }
+                }
+                
+            } else {
+                // 20% - 最小交互
+                await this.bot.utils.wait(2000 + Math.random() * 3000)
+                
+                // 轻微滚动
+                await page.evaluate(() => {
+                    window.scrollBy({ top: 200, behavior: 'smooth' })
+                })
+            }
+            
+            // 偶尔模拟误触（5%概率）
+            if (Math.random() < 0.05) {
+                const randomX = Math.random() * viewportWidth
+                const randomY = Math.random() * viewportHeight
+                await page.mouse.click(randomX, randomY)
+                await this.bot.utils.wait(500)
+            }
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'MOBILE-BEHAVIOR', `Error simulating mobile behavior: ${error}`, 'warn')
+        }
+    }
+
+    /**
+     * 移动端点击搜索结果
+     */
+    private async clickMobileSearchResult(page: Page): Promise<boolean> {
+        try {
+            // 移动端搜索结果选择器
+            const mobileResultSelectors = [
+                '#b_results .b_algo h2 a',
+                '.b_algo .b_attribution cite',
+                '.b_ans .b_rich h2 a'
+            ]
+            
+            for (const selector of mobileResultSelectors) {
+                const elements = await page.$$(selector)
+                if (elements.length > 0) {
+                    // 随机选择一个结果（偏向前面的结果）
+                    const index = Math.floor(Math.random() * Math.random() * elements.length)
+                    const element = elements[index]
+                    if (element) {
+                        await element.click()
+                        return true
+                    }
+                }
+            }
+            
+            return false
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', `Failed to click search result: ${error}`, 'warn')
+            return false
         }
     }
 
@@ -814,8 +930,6 @@ export class Search extends Workers {
         return []
     }
 
-
-
     private async clickRandomLink(page: Page) {
         try {
             await page.click('#b_results .b_algo h2', { timeout: 2000 }).catch(() => { }) // Since we don't really care if it did it or not
@@ -906,6 +1020,133 @@ export class Search extends Workers {
             }
         } catch (error) {
             // Continue if element is not found or other error occurs
+        }
+    }
+
+    /**
+     * 生成有上下文关联的搜索序列
+     */
+    private generateContextualSearches(baseQuery: string, language: string = 'ja'): string[] {
+        const contextualPatterns: Record<string, string[]> = {
+            'ja': [
+                `${baseQuery}`,
+                `${baseQuery} とは`,
+                `${baseQuery} 意味`,
+                `${baseQuery} 使い方`,
+                `${baseQuery} おすすめ`,
+                `${baseQuery} 比較`,
+                `${baseQuery} 評価`,
+                `${baseQuery} 口コミ`
+            ],
+            'en': [
+                `${baseQuery}`,
+                `what is ${baseQuery}`,
+                `${baseQuery} meaning`,
+                `how to use ${baseQuery}`,
+                `best ${baseQuery}`,
+                `${baseQuery} vs`,
+                `${baseQuery} review`,
+                `${baseQuery} guide`
+            ],
+            'zh': [
+                `${baseQuery}`,
+                `${baseQuery} 是什么`,
+                `${baseQuery} 怎么用`,
+                `${baseQuery} 推荐`,
+                `${baseQuery} 比较`,
+                `${baseQuery} 评价`,
+                `${baseQuery} 教程`
+            ]
+        }
+        
+        const patterns = contextualPatterns[language] || contextualPatterns['en']
+        // 随机选择2-3个相关搜索
+        const selectedCount = 2 + Math.floor(Math.random() * 2)
+        return this.bot.utils.shuffleArray(patterns as string[]).slice(0, selectedCount) as string[]
+    }
+
+    /**
+     * 检查是否应该使用上下文搜索
+     */
+    private shouldUseContextualSearch(): boolean {
+        // 30%的概率使用上下文搜索
+        return Math.random() < 0.3
+    }
+
+    /**
+     * 模拟搜索建议点击
+     */
+    private async clickSearchSuggestion(page: Page): Promise<boolean> {
+        try {
+            // 等待搜索建议出现
+            await this.bot.utils.wait(500 + Math.random() * 1000)
+            
+            // 搜索建议的选择器
+            const suggestionSelectors = [
+                '.sa_sg',  // Bing搜索建议
+                '.sa_tm_text',  // 相关搜索文本
+                '#sw_as .sa_tm'  // 下拉建议
+            ]
+            
+            for (const selector of suggestionSelectors) {
+                const suggestions = await page.$$(selector)
+                if (suggestions.length > 0) {
+                    // 倾向于选择前面的建议（更相关）
+                    const index = Math.floor(Math.random() * Math.min(3, suggestions.length))
+                    const suggestion = suggestions[index]
+                    if (suggestion) {
+                        await suggestion.click()
+                        this.bot.log(this.bot.isMobile, 'SEARCH-SUGGESTION', 'Clicked search suggestion')
+                        return true
+                    }
+                }
+            }
+            
+            return false
+        } catch (error) {
+            return false
+        }
+    }
+
+    /**
+     * 模拟查看搜索结果第二页
+     */
+    private async navigateToSecondPage(page: Page): Promise<boolean> {
+        try {
+            // 30%概率查看第二页
+            if (Math.random() > 0.3) return false
+            
+            // 滚动到页面底部
+            await page.evaluate(() => {
+                window.scrollTo(0, document.body.scrollHeight)
+            })
+            await this.bot.utils.wait(1000 + Math.random() * 1000)
+            
+            // 查找"下一页"按钮
+            const nextPageSelectors = [
+                'a.sb_pagN',  // 下一页按钮
+                'a[title="下一页"]',
+                'a[title="Next page"]',
+                'a[aria-label="下一页"]'
+            ]
+            
+            for (const selector of nextPageSelectors) {
+                const nextButton = await page.$(selector)
+                if (nextButton) {
+                    await nextButton.click()
+                    await this.bot.utils.wait(2000 + Math.random() * 2000)
+                    this.bot.log(this.bot.isMobile, 'SEARCH-PAGINATION', 'Navigated to second page')
+                    
+                    // 在第二页稍作停留
+                    await this.enhancedRandomScroll(page)
+                    
+                    return true
+                }
+            }
+            
+            return false
+        } catch (error) {
+            return false
         }
     }
 

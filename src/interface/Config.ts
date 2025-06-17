@@ -8,7 +8,11 @@ export interface Config {
     saveFingerprint: ConfigSaveFingerprint;
     workers: ConfigWorkers;
     searchOnBingLocalQueries: boolean;
-    globalTimeout: number | string;
+    globalTimeout: string;
+    accountDelay?: {
+        min: string;
+        max: string;
+    };
     searchSettings: ConfigSearchSettings;
     logExcludeFunc: string[];
     webhookLogExcludeFunc: string[];

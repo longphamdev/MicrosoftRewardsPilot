@@ -35,7 +35,19 @@ class Browser {
                 '--disable-setuid-sandbox',
                 '--ignore-certificate-errors',
                 '--ignore-certificate-errors-spki-list',
-                '--ignore-ssl-errors'
+                '--ignore-ssl-errors',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-web-security',
+                '--disable-webrtc-hw-encoding',
+                '--disable-webrtc-hw-decoding',
+                '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-features=VizDisplayCompositor'
             ]
         })
 

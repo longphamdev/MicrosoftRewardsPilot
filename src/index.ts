@@ -151,9 +151,27 @@ export class MicrosoftRewardsBot {
 
                 // 添加账户间的延迟，避免请求过于频繁
                 if (i < accounts.length - 1) {
-                    const delayMs = 2000 + Math.random() * 3000 // 2-5秒随机延迟
-                    log('main', 'MAIN-WORKER', `Waiting ${Math.round(delayMs/1000)}s before processing next account...`)
+                    // 使用配置文件中的延迟设置，如果没有则使用默认值
+                    const accountDelayConfig = this.config.accountDelay || { min: "5min", max: "15min" }
+                    const minDelay = this.utils.stringToMs(accountDelayConfig.min)
+                    const maxDelay = this.utils.stringToMs(accountDelayConfig.max)
+                    const delayMs = this.utils.randomNumber(minDelay, maxDelay)
+                    
+                    log('main', 'MAIN-WORKER', `⏱️ Waiting ${Math.round(delayMs/60000)} minutes before processing next account...`)
+                    log('main', 'MAIN-WORKER', `Next account will start at: ${new Date(Date.now() + delayMs).toLocaleTimeString()}`)
+                    
+                    // 显示倒计时
+                    const countdownInterval = setInterval(() => {
+                        const remaining = delayMs - (Date.now() - startTime)
+                        if (remaining > 0) {
+                            process.stdout.write(`\r⏳ Time remaining: ${Math.round(remaining/60000)} minutes...`)
+                        }
+                    }, 10000)  // 每10秒更新一次
+                    
+                    const startTime = Date.now()
                     await this.utils.wait(delayMs)
+                    clearInterval(countdownInterval)
+                    console.log('\n')  // 换行
                 }
 
             } catch (error) {
@@ -444,17 +462,41 @@ export class MicrosoftRewardsBot {
 
             // Do daily check in
             if (this.config.workers.doDailyCheckIn) {
-                await this.activities.doDailyCheckIn(this.accessToken, data)
+                try {
+                    log(this.isMobile, 'MOBILE-TASK', 'Starting Daily Check-In...')
+                    await this.activities.doDailyCheckIn(this.accessToken, data)
+                    log(this.isMobile, 'MOBILE-TASK', '✅ Completed Daily Check-In')
+                } catch (error) {
+                    log(this.isMobile, 'MOBILE-TASK', `❌ Daily Check-In failed: ${error}`, 'error')
+                }
+            } else {
+                log(this.isMobile, 'MOBILE-TASK', 'Daily Check-In disabled in config')
             }
 
             // Do read to earn
             if (this.config.workers.doReadToEarn) {
-                await this.activities.doReadToEarn(this.accessToken, data)
+                try {
+                    log(this.isMobile, 'MOBILE-TASK', 'Starting Read to Earn...')
+                    await this.activities.doReadToEarn(this.accessToken, data)
+                    log(this.isMobile, 'MOBILE-TASK', '✅ Completed Read to Earn')
+                } catch (error) {
+                    log(this.isMobile, 'MOBILE-TASK', `❌ Read to Earn failed: ${error}`, 'error')
+                }
+            } else {
+                log(this.isMobile, 'MOBILE-TASK', 'Read to Earn disabled in config')
             }
 
             // Do mobile searches
             if (this.config.workers.doMobileSearch) {
-                await this.performMobileSearches(browser, data, account, retryCount)
+                try {
+                    log(this.isMobile, 'MOBILE-TASK', 'Starting Mobile Search...')
+                    await this.performMobileSearches(browser, data, account, retryCount)
+                    log(this.isMobile, 'MOBILE-TASK', '✅ Completed Mobile Search')
+                } catch (error) {
+                    log(this.isMobile, 'MOBILE-TASK', `❌ Mobile Search failed: ${error}`, 'error')
+                }
+            } else {
+                log(this.isMobile, 'MOBILE-TASK', 'Mobile Search disabled in config')
             }
 
             const afterPointAmount = await this.browser.func.getCurrentPoints()

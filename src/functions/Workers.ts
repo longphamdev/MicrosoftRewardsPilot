@@ -156,13 +156,53 @@ export class Workers {
                 await activityPage.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => { })
                 await this.bot.utils.wait(2000)
 
+                // 尝试多个选择器策略
+                const selectors = [
+                    selector, // 原始选择器
+                    `[data-bi-id*="${activity.offerId}"]`, // 更宽松的offerId匹配
+                    `[data-bi-id*="${activity.name}"]`, // 基于名称的匹配
+                    `a[href*="${activity.offerId}"]`, // 基于href的匹配
+                    `a[href*="${activity.destinationUrl}"]`, // 基于目标URL的匹配
+                    `.offer-card:has-text("${activity.title}") a`, // 基于标题文本的匹配
+                    `[aria-label*="${activity.title}"]`, // 基于aria-label的匹配
+                    `.pointLink[title*="${activity.title}"]`, // 基于title属性的匹配
+                    `[data-bi-name*="${activity.title}"]`, // 基于data-bi-name的匹配
+                    `.c-card:has-text("${activity.title}") .pointLink` // 基于卡片容器的匹配
+                ]
+
                 // 先检查元素是否存在，避免长时间等待
-                const elementExists = await activityPage.waitForSelector(selector, { timeout: 5000 }).then(() => true).catch(() => false)
+                let elementExists = false
+                let foundSelector = ''
+                
+                for (const testSelector of selectors) {
+                    try {
+                        const element = await activityPage.waitForSelector(testSelector, { timeout: 2000 }).catch(() => null)
+                        if (element) {
+                            elementExists = true
+                            foundSelector = testSelector
+                            this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity element with selector: ${testSelector}`)
+                            break
+                        }
+                    } catch {
+                        continue
+                    }
+                }
                 
                 if (!elementExists) {
-                    this.bot.log(this.bot.isMobile, 'ACTIVITY', `Activity "${activity.title}" skipped - element not found: ${selector}`, 'warn')
+                    // 记录更详细的信息帮助调试
+                    this.bot.log(this.bot.isMobile, 'ACTIVITY', `Activity "${activity.title}" skipped - element not found`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'ACTIVITY-DEBUG', `Tried selectors for: offerId="${activity.offerId}", name="${activity.name}"`, 'warn')
+                    
+                    // 如果是日文活动，可能需要特殊处理
+                    if (activity.title && /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(activity.title)) {
+                        this.bot.log(this.bot.isMobile, 'ACTIVITY-DEBUG', 'This appears to be a Japanese activity, may require special handling', 'warn')
+                    }
+                    
                     continue
                 }
+
+                // 使用找到的选择器
+                selector = foundSelector
 
                 switch (activity.promotionType) {
                     // Quiz (Poll, Quiz or ABC)
