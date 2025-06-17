@@ -65,6 +65,9 @@ export class Search extends Workers {
         const searchStartTime = Date.now()
         const searchTimeoutMs = 20 * 60 * 1000 // 20分钟总体超时
         
+        let lastSuccessfulQuery: string | null = null
+        let contextSearchCount = 0
+        
         for (let i = 0; i < queries.length; i++) {
             // 检查总体超时
             if (Date.now() - searchStartTime > searchTimeoutMs) {
@@ -72,7 +75,25 @@ export class Search extends Workers {
                 break
             }
             
-            const query = queries[i] as string
+            let query = queries[i] as string
+            
+            // 如果应该使用上下文搜索，并且有上一个成功的查询
+            if (this.shouldUseContextualSearch() && lastSuccessfulQuery && contextSearchCount < 3) {
+                const contextQueries = this.generateContextualSearches(lastSuccessfulQuery, 
+                    data.userProfile?.attributes?.country === 'JP' ? 'ja' : 
+                    data.userProfile?.attributes?.country === 'CN' ? 'zh' : 'en')
+                
+                if (contextQueries.length > 0) {
+                    const contextQuery = contextQueries[0]
+                    if (contextQuery) {
+                        query = contextQuery
+                        contextSearchCount++
+                        this.bot.log(this.bot.isMobile, 'SEARCH-CONTEXT', `Using contextual search: ${query}`)
+                    }
+                }
+            } else {
+                contextSearchCount = 0
+            }
 
             this.bot.log(this.bot.isMobile, 'SEARCH-BING', `${missingPoints} Points Remaining | Query: ${query}`)
 
@@ -84,6 +105,7 @@ export class Search extends Workers {
                 maxLoop++ // Add to max loop
             } else { // There has been a change in points
                 maxLoop = 0 // Reset the loop
+                lastSuccessfulQuery = query // 记录成功的查询
             }
 
             missingPoints = newMissingPoints
@@ -471,6 +493,14 @@ export class Search extends Workers {
                 // 人类化的打字输入
                 await this.humanTypeText(searchPage, query)
                 
+                // 5%概率使用搜索建议
+                if (Math.random() < 0.05) {
+                    const suggestionClicked = await this.clickSearchSuggestion(searchPage)
+                    if (suggestionClicked) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', 'Used search suggestion instead of typing full query')
+                    }
+                }
+                
                 // 随机的提交前停顿
                 await this.bot.utils.wait(Math.random() * 1000 + 500)
                 
@@ -486,6 +516,14 @@ export class Search extends Workers {
 
                 // 增强的人类行为模拟
                 await this.simulateHumanBehavior(resultPage)
+
+                // 10%概率查看搜索结果第二页
+                if (Math.random() < 0.1) {
+                    const navigatedToSecondPage = await this.navigateToSecondPage(resultPage)
+                    if (navigatedToSecondPage) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', 'Viewed second page of search results')
+                    }
+                }
 
                 // 智能延迟系统
                 const delayMs = await this.calculateSmartDelay(i)
