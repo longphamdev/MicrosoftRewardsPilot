@@ -173,7 +173,7 @@ export class Login {
 
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'LOGIN', `Password entry failed: ${error}`, 'error')
-            await this.handle2FA(page)
+                await this.handle2FA(page)
         }
     }
 
