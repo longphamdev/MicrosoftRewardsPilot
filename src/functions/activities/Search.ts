@@ -64,6 +64,11 @@ export class Search extends Workers {
         // Loop over search queries
         const searchStartTime = Date.now()
         const searchTimeoutMs = 20 * 60 * 1000 // 20分钟总体超时
+        const totalQueries = queries.length
+        let completedSearches = 0
+        let earnedPoints = 0
+        
+        this.bot.log(this.bot.isMobile, 'SEARCH-PROGRESS', `Starting ${this.bot.isMobile ? 'mobile' : 'desktop'} search: ${missingPoints} points needed, ${totalQueries} queries available`)
         
         let lastSuccessfulQuery: string | null = null
         let contextSearchCount = 0
@@ -95,14 +100,26 @@ export class Search extends Workers {
                 contextSearchCount = 0
             }
 
-            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `${missingPoints} Points Remaining | Query: ${query}`)
+            // 显示详细进度
+            completedSearches++
+            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `[${completedSearches}/${totalQueries}] ${missingPoints} Points Remaining | Query: ${query}`)
 
             searchCounters = await this.bingSearch(page, query)
             const newMissingPoints = this.calculatePoints(searchCounters)
 
+            // 计算本次搜索获得的积分
+            const pointsGained = missingPoints - newMissingPoints
+            if (pointsGained > 0) {
+                earnedPoints += pointsGained
+                this.bot.log(this.bot.isMobile, 'SEARCH-PROGRESS', `Earned ${pointsGained} points (Total: ${earnedPoints} points)`)
+            }
+
             // If the new point amount is the same as before
             if (newMissingPoints == missingPoints) {
                 maxLoop++ // Add to max loop
+                if (maxLoop === 3) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-WARNING', `No points gained for ${maxLoop} searches, may need to wait longer between searches`)
+                }
             } else { // There has been a change in points
                 maxLoop = 0 // Reset the loop
                 lastSuccessfulQuery = query // 记录成功的查询
@@ -111,7 +128,17 @@ export class Search extends Workers {
             missingPoints = newMissingPoints
 
             if (missingPoints === 0) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-COMPLETE', `✅ Search completed! Total earned: ${earnedPoints} points`)
                 break
+            }
+
+            // 显示预计剩余时间
+            if (completedSearches % 5 === 0) {
+                const avgTimePerSearch = (Date.now() - searchStartTime) / completedSearches
+                const estimatedSearchesNeeded = Math.ceil(missingPoints / 5) // 假设每次搜索5分
+                const estimatedTimeRemaining = avgTimePerSearch * estimatedSearchesNeeded
+                const minutes = Math.ceil(estimatedTimeRemaining / 60000)
+                this.bot.log(this.bot.isMobile, 'SEARCH-ESTIMATE', `Estimated time remaining: ~${minutes} minutes`)
             }
 
             // Only for mobile searches
@@ -231,12 +258,30 @@ export class Search extends Workers {
             return await GeoLanguageDetector.getCurrentLocation()
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Failed to detect location, using profile data', 'warn')
+            
             // 备用方案：使用用户资料中的国家信息
-            const country = data.userProfile?.attributes?.country || 'JP'
+            const profileCountry = data.userProfile?.attributes?.country || 'US'
+            
+            // 根据国家代码映射语言
+            const countryLanguageMap: Record<string, string> = {
+                'JP': 'ja', 'CN': 'zh-CN', 'KR': 'ko', 'VN': 'vi',
+                'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en',
+                'DE': 'de', 'FR': 'fr', 'ES': 'es', 'IT': 'it',
+                'BR': 'pt-BR', 'PT': 'pt', 'RU': 'ru', 'IN': 'hi',
+                'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es',
+                'TH': 'th', 'ID': 'id', 'MY': 'ms', 'PH': 'en',
+                'TW': 'zh-TW', 'HK': 'zh-HK', 'SG': 'en', 'NZ': 'en'
+            }
+            
+            const inferredLanguage = countryLanguageMap[profileCountry] || 'en'
+            
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO-INFERRED', 
+                `Using profile country: ${profileCountry} with language: ${inferredLanguage}`)
+            
             return {
-                country: country,
-                countryCode: country,
-                language: country === 'JP' ? 'ja' : country === 'CN' ? 'zh-CN' : 'en'
+                country: profileCountry,
+                countryCode: profileCountry,
+                language: inferredLanguage
             }
         }
     }
@@ -861,10 +906,16 @@ export class Search extends Workers {
      */
          private async calculateSmartDelay(searchIndex: number): Promise<number> {
          const config = this.bot.config.searchSettings.searchDelay
-         const minDelayStr = String(config.min || "30s")
-         const maxDelayStr = String(config.max || "90s")
-         const minDelay = this.bot.utils.stringToMs(minDelayStr)
-         const maxDelay = this.bot.utils.stringToMs(maxDelayStr)
+         const minDelayStr = String(config.min || "15s")
+         const maxDelayStr = String(config.max || "45s")
+         let minDelay = this.bot.utils.stringToMs(minDelayStr)
+         let maxDelay = this.bot.utils.stringToMs(maxDelayStr)
+        
+        // 移动端使用更短的延迟
+        if (this.bot.isMobile) {
+            minDelay = Math.floor(minDelay * 0.8) // 移动端减少20%延迟
+            maxDelay = Math.floor(maxDelay * 0.8)
+        }
         
         // 基础随机延迟
         let baseDelay = Math.floor(this.bot.utils.randomNumber(minDelay, maxDelay))
@@ -882,8 +933,10 @@ export class Search extends Workers {
             timeMultiplier = 1.2
         }
         
-        // 搜索序列优化：后续搜索延迟递增
-        const sequenceMultiplier = 1 + (searchIndex * 0.1) // 每次搜索增加10%延迟
+        // 搜索序列优化：后续搜索延迟递增，但移动端增幅更小
+        const sequenceMultiplier = this.bot.isMobile ? 
+            1 + (searchIndex * 0.05) : // 移动端每次增加5%延迟
+            1 + (searchIndex * 0.1)    // 桌面端每次增加10%延迟
         
         // 随机波动：±30%的随机变化
         const randomMultiplier = 0.7 + Math.random() * 0.6
@@ -891,8 +944,13 @@ export class Search extends Workers {
         // 计算最终延迟
         const finalDelay = Math.floor(baseDelay * timeMultiplier * sequenceMultiplier * randomMultiplier)
         
-        // 确保延迟在合理范围内（最少15秒，最多3分钟）
-        return Math.max(15000, Math.min(180000, finalDelay))
+        // 确保延迟在合理范围内
+        // 移动端：最少10秒，最多90秒
+        // 桌面端：最少15秒，最多180秒
+        const minFinalDelay = this.bot.isMobile ? 10000 : 15000
+        const maxFinalDelay = this.bot.isMobile ? 90000 : 180000
+        
+        return Math.max(minFinalDelay, Math.min(maxFinalDelay, finalDelay))
     }
 
     /**

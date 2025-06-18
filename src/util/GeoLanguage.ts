@@ -40,16 +40,18 @@ export class GeoLanguageDetector {
         }
 
         try {
-            // 尝试多个IP地理位置服务
+            // 地理位置服务列表（按优先级排序）
             const geoServices = [
                 'http://ip-api.com/json',
                 'https://ipapi.co/json',
-                'https://ipinfo.io/json'
+                'https://ipinfo.io/json',
+                'https://api.ipgeolocation.io/ipgeo?apiKey=free',  // 添加新的备用服务
+                'https://freegeoip.app/json/'  // 添加新的备用服务
             ]
 
             for (const service of geoServices) {
                 try {
-                    const response = await axios.get(service, { timeout: 5000 })
+                    const response = await axios.get(service, { timeout: 10000 })  // 增加超时时间到10秒
                     const location = this.parseLocationResponse(response.data, service)
                     
                     if (location) {
@@ -108,6 +110,28 @@ export class GeoLanguageDetector {
                     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.country || 'US'),
                     currency: 'USD', // ipinfo.io不提供货币信息
+                    ip: data.ip || 'Unknown'
+                }
+            } else if (service.includes('ipgeolocation.io')) {
+                // 添加 ipgeolocation.io 解析
+                return {
+                    country: data.country_name || 'Unknown',
+                    countryCode: data.country_code2 || 'US',
+                    city: data.city || 'Unknown',
+                    timezone: data.time_zone?.name || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(data.country_code2 || 'US'),
+                    currency: data.currency?.code || 'USD',
+                    ip: data.ip || 'Unknown'
+                }
+            } else if (service.includes('freegeoip.app')) {
+                // 添加 freegeoip.app 解析
+                return {
+                    country: data.country_name || 'Unknown',
+                    countryCode: data.country_code || 'US',
+                    city: data.city || 'Unknown',
+                    timezone: data.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(data.country_code || 'US'),
+                    currency: 'USD', // freegeoip不提供货币信息
                     ip: data.ip || 'Unknown'
                 }
             }
@@ -169,7 +193,8 @@ export class GeoLanguageDetector {
             'SE': 'sv',
             'NO': 'no',
             'DK': 'da',
-            'FI': 'fi'
+            'FI': 'fi',
+            'VN': 'vi'
         }
 
         return countryLanguageMap[countryCode] || 'en'
@@ -371,6 +396,67 @@ export class GeoLanguageDetector {
                         '地方美食'
                     ]
                 }
+            },
+            'vi': {
+                code: 'vi',
+                name: 'Vietnamese',
+                googleTrendsLocale: 'VN',
+                searchQueries: {
+                    news: [
+                        'tin tức hôm nay',
+                        'tin mới nhất',
+                        'tin trong nước',
+                        'tin quốc tế',
+                        'tin công nghệ',
+                        'tin kinh tế',
+                        'tin thể thao',
+                        'tin giải trí'
+                    ],
+                    common: [
+                        'cách nấu ăn',
+                        'địa điểm du lịch',
+                        'sức khỏe',
+                        'giảm cân',
+                        'phim hay',
+                        'mua sắm',
+                        'dự báo thời tiết',
+                        'học tập'
+                    ],
+                    tech: [
+                        'trí tuệ nhân tạo',
+                        'công nghệ mới',
+                        'đánh giá điện thoại',
+                        'tin game',
+                        'ứng dụng hay',
+                        'máy tính',
+                        'internet',
+                        'lập trình'
+                    ],
+                    entertainment: [
+                        'phim truyền hình',
+                        'nhạc hot',
+                        'sao Việt',
+                        'gameshow',
+                        'ca nhạc',
+                        'showbiz'
+                    ],
+                    sports: [
+                        'bóng đá',
+                        'bóng rổ',
+                        'thể thao',
+                        'Olympic',
+                        'tennis',
+                        'gym'
+                    ],
+                    food: [
+                        'món ngon',
+                        'công thức nấu ăn',
+                        'nhà hàng',
+                        'món ăn gia đình',
+                        'làm bánh',
+                        'ẩm thực'
+                    ]
+                }
             }
         }
 
@@ -401,6 +487,14 @@ export class GeoLanguageDetector {
                 `今日热点`,
                 `${currentYear}年趋势`,
                 `最新资讯`
+            ]
+        } else if (languageCode === 'vi') {
+            return [
+                `tin tức ${currentYear}`,
+                `sự kiện tháng ${currentDate.getMonth() + 1}`,
+                `tin hot hôm nay`,
+                `xu hướng ${currentYear}`,
+                `cập nhật mới nhất`
             ]
         } else {
             return [

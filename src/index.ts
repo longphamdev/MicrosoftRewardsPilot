@@ -464,7 +464,7 @@ export class MicrosoftRewardsBot {
             if (this.config.workers.doDailyCheckIn) {
                 try {
                     log(this.isMobile, 'MOBILE-TASK', 'Starting Daily Check-In...')
-                    await this.activities.doDailyCheckIn(this.accessToken, data)
+                await this.activities.doDailyCheckIn(this.accessToken, data)
                     log(this.isMobile, 'MOBILE-TASK', '✅ Completed Daily Check-In')
                 } catch (error) {
                     log(this.isMobile, 'MOBILE-TASK', `❌ Daily Check-In failed: ${error}`, 'error')
@@ -477,7 +477,7 @@ export class MicrosoftRewardsBot {
             if (this.config.workers.doReadToEarn) {
                 try {
                     log(this.isMobile, 'MOBILE-TASK', 'Starting Read to Earn...')
-                    await this.activities.doReadToEarn(this.accessToken, data)
+                await this.activities.doReadToEarn(this.accessToken, data)
                     log(this.isMobile, 'MOBILE-TASK', '✅ Completed Read to Earn')
                 } catch (error) {
                     log(this.isMobile, 'MOBILE-TASK', `❌ Read to Earn failed: ${error}`, 'error')
@@ -490,7 +490,7 @@ export class MicrosoftRewardsBot {
             if (this.config.workers.doMobileSearch) {
                 try {
                     log(this.isMobile, 'MOBILE-TASK', 'Starting Mobile Search...')
-                    await this.performMobileSearches(browser, data, account, retryCount)
+                await this.performMobileSearches(browser, data, account, retryCount)
                     log(this.isMobile, 'MOBILE-TASK', '✅ Completed Mobile Search')
                 } catch (error) {
                     log(this.isMobile, 'MOBILE-TASK', `❌ Mobile Search failed: ${error}`, 'error')
