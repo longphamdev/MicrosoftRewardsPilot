@@ -253,36 +253,87 @@ export class Search extends Workers {
      */
     private async getGeoLocationWithFallback(data: DashboardData): Promise<any> {
         try {
-            // 尝试加载地理检测模块
+            // 优先级1: 尝试通过IP地址检测地理位置
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Attempting IP-based location detection...', 'log')
             const { GeoLanguageDetector } = await import('../../util/GeoLanguage')
-            return await GeoLanguageDetector.getCurrentLocation()
+            const ipLocation = await GeoLanguageDetector.getCurrentLocation()
+            
+            // 如果IP检测成功且不是未知位置
+            if (ipLocation && ipLocation.country !== 'Unknown' && ipLocation.ip !== 'Unknown') {
+                this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+                    `IP detection successful: ${ipLocation.country} (${ipLocation.countryCode}) - Language: ${ipLocation.language}`)
+                return ipLocation
+            }
         } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Failed to detect location, using profile data', 'warn')
-            
-            // 备用方案：使用用户资料中的国家信息
-            const profileCountry = data.userProfile?.attributes?.country || 'US'
-            
-            // 根据国家代码映射语言
-            const countryLanguageMap: Record<string, string> = {
-                'JP': 'ja', 'CN': 'zh-CN', 'KR': 'ko', 'VN': 'vi',
-                'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en',
-                'DE': 'de', 'FR': 'fr', 'ES': 'es', 'IT': 'it',
-                'BR': 'pt-BR', 'PT': 'pt', 'RU': 'ru', 'IN': 'hi',
-                'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es',
-                'TH': 'th', 'ID': 'id', 'MY': 'ms', 'PH': 'en',
-                'TW': 'zh-TW', 'HK': 'zh-HK', 'SG': 'en', 'NZ': 'en'
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'IP-based location detection failed', 'warn')
+        }
+        
+        // 优先级2: 使用账户资料中的国家信息
+        try {
+            const profileCountry = data.userProfile?.attributes?.country
+            if (profileCountry) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+                    `Using account profile country: ${profileCountry}`, 'log')
+                
+                // 根据国家代码映射语言
+                const countryLanguageMap: Record<string, string> = {
+                    'JP': 'ja', 'CN': 'zh-CN', 'KR': 'ko', 'VN': 'vi',
+                    'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en',
+                    'DE': 'de', 'FR': 'fr', 'ES': 'es', 'IT': 'it',
+                    'BR': 'pt-BR', 'PT': 'pt', 'RU': 'ru', 'IN': 'hi',
+                    'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es',
+                    'TH': 'th', 'ID': 'id', 'MY': 'ms', 'PH': 'en',
+                    'TW': 'zh-TW', 'HK': 'zh-HK', 'SG': 'en', 'NZ': 'en'
+                }
+                
+                const inferredLanguage = countryLanguageMap[profileCountry] || 'en'
+                
+                return {
+                    country: profileCountry,
+                    countryCode: profileCountry,
+                    language: inferredLanguage,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    city: 'Unknown',
+                    currency: 'USD',
+                    ip: 'Unknown'
+                }
             }
-            
-            const inferredLanguage = countryLanguageMap[profileCountry] || 'en'
-            
-            this.bot.log(this.bot.isMobile, 'SEARCH-GEO-INFERRED', 
-                `Using profile country: ${profileCountry} with language: ${inferredLanguage}`)
-            
-            return {
-                country: profileCountry,
-                countryCode: profileCountry,
-                language: inferredLanguage
-            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Failed to use profile country', 'warn')
+        }
+        
+        // 优先级3: 使用时区推测（最后的备用方案）
+        this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+            'Falling back to timezone-based location detection', 'warn')
+        
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+        const timezoneMap: Record<string, { country: string, code: string, language: string }> = {
+            'Asia/Tokyo': { country: 'Japan', code: 'JP', language: 'ja' },
+            'Asia/Shanghai': { country: 'China', code: 'CN', language: 'zh-CN' },
+            'Asia/Seoul': { country: 'South Korea', code: 'KR', language: 'ko' },
+            'Asia/Ho_Chi_Minh': { country: 'Vietnam', code: 'VN', language: 'vi' },
+            'Asia/Bangkok': { country: 'Thailand', code: 'TH', language: 'th' },
+            'Europe/London': { country: 'United Kingdom', code: 'GB', language: 'en' },
+            'Europe/Paris': { country: 'France', code: 'FR', language: 'fr' },
+            'Europe/Berlin': { country: 'Germany', code: 'DE', language: 'de' },
+            'America/New_York': { country: 'United States', code: 'US', language: 'en' },
+            'America/Los_Angeles': { country: 'United States', code: 'US', language: 'en' },
+            'Australia/Sydney': { country: 'Australia', code: 'AU', language: 'en' }
+        }
+        
+        const location = timezoneMap[timezone] || { country: 'United States', code: 'US', language: 'en' }
+        
+        this.bot.log(this.bot.isMobile, 'SEARCH-GEO-TIMEZONE', 
+            `Using timezone ${timezone}: ${location.country} (${location.code}) with language: ${location.language}`)
+        
+        return {
+            country: location.country,
+            countryCode: location.code,
+            language: location.language,
+            timezone: timezone,
+            city: 'Unknown',
+            currency: 'USD',
+            ip: 'Unknown'
         }
     }
 
@@ -974,6 +1025,12 @@ export class Search extends Workers {
     }
 
     private async getGoogleTrends(geoLocale: string = 'JP'): Promise<GoogleSearch[]> {
+        // 检查是否是中国大陆地区
+        if (geoLocale.toUpperCase() === 'CN' || geoLocale.toUpperCase() === 'ZH-CN') {
+            this.bot.log(this.bot.isMobile, 'SEARCH-TRENDS', 'Detected China region, using alternative trend source')
+            return await this.getChinaTrends()
+        }
+
         const queryTerms: GoogleSearch[] = []
         this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Generating search queries, can take a while! | GeoLocale: ${geoLocale}`)
 
@@ -1013,6 +1070,262 @@ export class Search extends Workers {
         }
 
         return queryTerms
+    }
+
+    /**
+     * 获取中国地区的热门搜索趋势
+     * 使用百度、微博等本地化数据源
+     */
+    private async getChinaTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        const chinaConfig = this.bot.config.searchSettings.chinaRegionAdaptation
+        
+        // 如果未启用中国地区适配，直接返回备用查询
+        if (!chinaConfig?.enabled) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', 'China region adaptation disabled, using fallback queries')
+            return this.getChineseFallbackQueries()
+        }
+        
+        try {
+            // 方案1：使用百度热搜榜
+            if (chinaConfig.useBaiduTrends) {
+                const baiduTrends = await this.getBaiduTrends()
+                if (baiduTrends.length > 0) {
+                    queryTerms.push(...baiduTrends)
+                }
+            }
+
+            // 方案2：使用微博热搜
+            if (chinaConfig.useWeiboTrends) {
+                const weiboTrends = await this.getWeiboTrends()
+                if (weiboTrends.length > 0) {
+                    queryTerms.push(...weiboTrends)
+                }
+            }
+
+            // 如果获取失败或数量不足，使用预定义的中文搜索词
+            if (chinaConfig.fallbackToLocalQueries && queryTerms.length < 50) {
+                const fallbackQueries = this.getChineseFallbackQueries()
+                queryTerms.push(...fallbackQueries)
+            }
+
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', `Generated ${queryTerms.length} search queries for China region`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', `Error getting China trends: ${error}`, 'warn')
+            // 使用预定义的备用查询
+            if (chinaConfig.fallbackToLocalQueries) {
+                return this.getChineseFallbackQueries()
+            }
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 获取百度热搜数据
+     */
+    private async getBaiduTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        
+        try {
+            // 百度热搜榜API
+            const request: AxiosRequestConfig = {
+                url: 'https://top.baidu.com/board?tab=realtime',
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'zh-CN,zh;q=0.9'
+                }
+            }
+
+            const response = await this.bot.axios.request(request, false) // 不使用代理
+            const htmlContent = response.data as string
+
+            // 解析热搜数据
+            // 百度热搜数据通常在 window.__INITIAL_STATE__ 中
+            const dataMatch = htmlContent.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/)
+            if (dataMatch && dataMatch[1]) {
+                try {
+                    const data = JSON.parse(dataMatch[1])
+                    const hotList = data?.hotList || []
+                    
+                    for (const item of hotList.slice(0, 30)) { // 取前30个热搜
+                        if (item.word) {
+                            queryTerms.push({
+                                topic: item.word,
+                                related: this.generateChineseRelatedTerms(item.word)
+                            })
+                        }
+                    }
+                } catch (parseError) {
+                    this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', 'Failed to parse Baidu trends data', 'warn')
+                }
+            }
+
+            this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', `Fetched ${queryTerms.length} trends from Baidu`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', `Error fetching Baidu trends: ${error}`, 'warn')
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 获取微博热搜数据
+     */
+    private async getWeiboTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        
+        try {
+            // 微博热搜API
+            const request: AxiosRequestConfig = {
+                url: 'https://weibo.com/ajax/side/hotSearch',
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Referer': 'https://weibo.com/'
+                }
+            }
+
+            const response = await this.bot.axios.request(request, false) // 不使用代理
+            const data = response.data
+
+            if (data?.data?.realtime) {
+                for (const item of data.data.realtime.slice(0, 30)) { // 取前30个热搜
+                    if (item.word) {
+                        queryTerms.push({
+                            topic: item.word,
+                            related: this.generateChineseRelatedTerms(item.word)
+                        })
+                    }
+                }
+            }
+
+            this.bot.log(this.bot.isMobile, 'WEIBO-TRENDS', `Fetched ${queryTerms.length} trends from Weibo`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'WEIBO-TRENDS', `Error fetching Weibo trends: ${error}`, 'warn')
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 生成中文相关搜索词
+     */
+    private generateChineseRelatedTerms(baseQuery: string): string[] {
+        const patterns = [
+            `${baseQuery} 最新消息`,
+            `${baseQuery} 是什么`,
+            `${baseQuery} 怎么样`,
+            `${baseQuery} 详情`,
+            `${baseQuery} 原因`,
+            `${baseQuery} 结果`,
+            `${baseQuery} 影响`,
+            `${baseQuery} 评论`
+        ]
+        
+        // 随机选择3-5个相关词
+        const selectedCount = 3 + Math.floor(Math.random() * 3)
+        return this.bot.utils.shuffleArray(patterns).slice(0, selectedCount)
+    }
+
+    /**
+     * 中文备用搜索查询
+     */
+    private getChineseFallbackQueries(): GoogleSearch[] {
+        const currentDate = new Date()
+        const currentYear = currentDate.getFullYear()
+        const currentMonth = currentDate.getMonth() + 1
+        
+        const topics = [
+            // 时事热点
+            `${currentYear}年${currentMonth}月新闻`,
+            '今日头条',
+            '热点新闻',
+            '国内新闻',
+            '国际新闻',
+            '财经新闻',
+            '科技新闻',
+            '体育新闻',
+            '娱乐新闻',
+            
+            // 生活相关
+            '天气预报',
+            '美食推荐',
+            '旅游攻略',
+            '健康养生',
+            '购物优惠',
+            '电影推荐',
+            '音乐排行榜',
+            '游戏攻略',
+            
+            // 科技话题
+            '人工智能',
+            '5G技术',
+            '新能源汽车',
+            '手机评测',
+            '电脑配置',
+            '软件推荐',
+            '编程教程',
+            '区块链',
+            
+            // 热门品牌和产品
+            '华为',
+            '小米',
+            'OPPO',
+            'vivo',
+            '比亚迪',
+            '特斯拉',
+            '抖音',
+            '微信',
+            '支付宝',
+            '淘宝',
+            '京东',
+            '拼多多',
+            
+            // 教育学习
+            '考研',
+            '高考',
+            '英语学习',
+            '编程学习',
+            '职业规划',
+            '面试技巧',
+            
+            // 投资理财
+            '股票行情',
+            '基金推荐',
+            '理财产品',
+            '房价走势',
+            '黄金价格',
+            
+            // 热门话题
+            '减肥方法',
+            '护肤技巧',
+            '穿搭推荐',
+            '家居装修',
+            '宠物养护',
+            '植物种植',
+            '美食制作',
+            '旅游景点',
+            
+            // 节日相关（根据时间动态调整）
+            '春节',
+            '中秋节',
+            '国庆节',
+            '双十一',
+            '双十二'
+        ]
+        
+        // 将简单的字符串转换为 GoogleSearch 格式
+        return topics.map(topic => ({
+            topic,
+            related: this.generateChineseRelatedTerms(topic)
+        }))
     }
 
     private extractJsonFromResponse(text: string): GoogleTrendsResponse[1] | null {

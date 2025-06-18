@@ -34,6 +34,7 @@ export interface ConfigSearchSettings {
     multiLanguage?: ConfigMultiLanguage;
     autoTimezone?: ConfigAutoTimezone;
     humanBehavior?: ConfigHumanBehavior;
+    chinaRegionAdaptation?: ConfigChinaRegion;
 }
 
 export interface ConfigMultiLanguage {
@@ -81,4 +82,11 @@ export interface ConfigWorkers {
     doMobileSearch: boolean;
     doDailyCheckIn: boolean;
     doReadToEarn: boolean;
+}
+
+export interface ConfigChinaRegion {
+    enabled: boolean;
+    useBaiduTrends: boolean;
+    useWeiboTrends: boolean;
+    fallbackToLocalQueries: boolean;
 }
