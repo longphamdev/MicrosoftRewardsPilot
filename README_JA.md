@@ -116,6 +116,11 @@ services:
       "typingErrorRate": 0.12,      // ✏️ タイピングエラー率
       "thinkingPauseEnabled": true, // 🤔 思考停止
       "randomScrollEnabled": true   // 📜 ランダムスクロール
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,              // 🇨🇳 中国地域適応を有効化
+      "useBaiduTrends": true,       // 🔍 百度トレンドを使用
+      "useWeiboTrends": true        // 📱 微博トレンドを使用
     }
   }
 }
@@ -170,6 +175,7 @@ services:
 - 📊 **詳細ログ** - 完全な実行記録
 - ⚡ **高性能** - 最適化された並行処理
 - 🔧 **柔軟な設定** - 豊富なカスタマイズオプション
+- 🇨🇳 **中国本土最適化** - 百度/微博トレンド統合
 
 </td>
 </tr>
@@ -205,6 +211,7 @@ npm run debug-quiz "https://rewards.microsoft.com/quiz/xxx"
 | 🕐 **タイムゾーン同期** | マッチングタイムゾーンの自動設定 |
 | 🗣️ **多言語サポート** | 日本語、中国語、英語など |
 | 🤖 **行動シミュレーション** | タイピングエラー、ランダムスクロール、思考停止 |
+| 🇨🇳 **中国地域適応** | 百度トレンド、微博トレンド、ローカライズクエリ |
 
 </div>
 
@@ -315,6 +322,11 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
       "randomScrollEnabled": true,
       "clickRandomEnabled": true,
       "timeBasedDelayEnabled": true
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,
+      "useBaiduTrends": true,
+      "useWeiboTrends": true
     }
   },
   "proxy": {

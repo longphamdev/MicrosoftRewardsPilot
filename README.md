@@ -116,6 +116,11 @@ services:
       "typingErrorRate": 0.12,      // ✏️ 打字错误率
       "thinkingPauseEnabled": true, // 思考暂停
       "randomScrollEnabled": true   // 📜 随机滚动
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,              // 🇨🇳 启用中国区域适配
+      "useBaiduTrends": true,       // 🔍 使用百度热搜
+      "useWeiboTrends": true        // 📱 使用微博热搜
     }
   }
 }
@@ -170,6 +175,7 @@ services:
 - 📊 **详细日志** - 完整的执行记录
 - ⚡ **高性能** - 优化的并发处理
 - 🔧 **灵活配置** - 丰富的自定义选项
+- 🇨🇳 **中国大陆优化** - 百度/微博热搜集成
 
 </td>
 </tr>
@@ -205,6 +211,7 @@ npm run debug-quiz "https://rewards.microsoft.com/quiz/xxx"
 | 🕐 **时区同步** | 自动设置匹配时区 |
 | 🗣️ **多语言支持** | 日语、中文、英语等 |
 | 🤖 **行为模拟** | 打字错误、随机滚动、思考暂停 |
+| 🇨🇳 **中国区域适配** | 百度热搜、微博热搜、本地化查询 |
 
 </div>
 
@@ -315,6 +322,11 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
       "randomScrollEnabled": true,
       "clickRandomEnabled": true,
       "timeBasedDelayEnabled": true
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,
+      "useBaiduTrends": true,
+      "useWeiboTrends": true
     }
   },
   "proxy": {
