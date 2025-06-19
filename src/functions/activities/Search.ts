@@ -19,6 +19,8 @@ type GoogleTrendsResponse = [
 export class Search extends Workers {
     private bingHome = 'https://bing.com'
     private searchPageURL = ''
+    private consecutiveFailures = 0
+    private adaptiveDelayMultiplier = 1.0
 
     public async doSearch(page: Page, data: DashboardData) {
         this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Starting Bing searches')
@@ -647,22 +649,35 @@ export class Search extends Workers {
                 await this.bot.utils.wait(500)
 
                 const searchBar = '#sb_form_q'
-                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 15000 })
+                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 30000 })
                 
                 // 添加焦点检查和重试机制
                 let clickRetries = 0
-                while (clickRetries < 3) {
+                while (clickRetries < 5) {
                     try {
-                        await searchPage.click(searchBar, { timeout: 5000 })
-                        break
+                        await searchPage.click(searchBar, { timeout: 8000 })
+                        
+                        // 验证搜索框是否已获得焦点
+                        const isFocused = await searchPage.evaluate(() => {
+                            const element = document.querySelector('#sb_form_q') as HTMLInputElement
+                            return element && element === document.activeElement
+                        })
+                        
+                        if (isFocused) {
+                            break
+                        } else if (clickRetries < 4) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search bar not focused, retry ${clickRetries + 1}/5`, 'warn')
+                            await this.bot.utils.wait(2000)
+                        }
                     } catch (clickError) {
                         clickRetries++
-                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search bar click failed, retry ${clickRetries}/3`, 'warn')
-                        if (clickRetries >= 3) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search bar click failed, retry ${clickRetries}/5`, 'warn')
+                        if (clickRetries >= 5) {
                             throw clickError
                         }
-                        await this.bot.utils.wait(1000)
+                        await this.bot.utils.wait(3000)
                     }
+                    clickRetries++
                 }
                 
                 // 人类化的思考停顿
@@ -747,6 +762,9 @@ export class Search extends Workers {
                         )
                     ]) as Counters
                     
+                    // 搜索成功，重置失败计数
+                    this.handleSearchSuccess()
+                    
                     return searchPoints
                 } catch (pointsError) {
                     this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Failed to get search points: ${pointsError}`, 'warn')
@@ -755,6 +773,9 @@ export class Search extends Workers {
                 }
 
             } catch (error) {
+                // 处理搜索失败
+                this.handleSearchFailure()
+                
                 // 增强的错误检测和分类
                 const errorMessage = String(error)
                 const isBrowserClosed = errorMessage.includes('Target page, context or browser has been closed') ||
@@ -1067,8 +1088,8 @@ export class Search extends Workers {
      */
          private async calculateSmartDelay(searchIndex: number): Promise<number> {
          const config = this.bot.config.searchSettings.searchDelay
-         const minDelayStr = String(config.min || "15s")
-         const maxDelayStr = String(config.max || "45s")
+         const minDelayStr = String(config.min || "45s")
+         const maxDelayStr = String(config.max || "120s")
          let minDelay = this.bot.utils.stringToMs(minDelayStr)
          let maxDelay = this.bot.utils.stringToMs(maxDelayStr)
         
@@ -1080,6 +1101,9 @@ export class Search extends Workers {
         
         // 基础随机延迟
         let baseDelay = Math.floor(this.bot.utils.randomNumber(minDelay, maxDelay))
+        
+        // 自适应延迟调整
+        baseDelay = Math.floor(baseDelay * this.adaptiveDelayMultiplier)
         
         // 时间分布优化：模拟真实用户搜索模式
         const currentHour = new Date().getHours()
@@ -1099,19 +1123,72 @@ export class Search extends Workers {
             1 + (searchIndex * 0.05) : // 移动端每次增加5%延迟
             1 + (searchIndex * 0.1)    // 桌面端每次增加10%延迟
         
+        // 连续失败惩罚
+        const failurePenalty = 1 + (this.consecutiveFailures * 0.3)
+        
         // 随机波动：±30%的随机变化
         const randomMultiplier = 0.7 + Math.random() * 0.6
         
         // 计算最终延迟
-        const finalDelay = Math.floor(baseDelay * timeMultiplier * sequenceMultiplier * randomMultiplier)
+        const finalDelay = Math.floor(baseDelay * timeMultiplier * sequenceMultiplier * failurePenalty * randomMultiplier)
         
         // 确保延迟在合理范围内
-        // 移动端：最少10秒，最多90秒
-        // 桌面端：最少15秒，最多180秒
-        const minFinalDelay = this.bot.isMobile ? 10000 : 15000
-        const maxFinalDelay = this.bot.isMobile ? 90000 : 180000
+        // 移动端：最少15秒，最多180秒
+        // 桌面端：最少30秒，最多300秒
+        const minFinalDelay = this.bot.isMobile ? 15000 : 30000
+        const maxFinalDelay = this.bot.isMobile ? 180000 : 300000
         
-        return Math.max(minFinalDelay, Math.min(maxFinalDelay, finalDelay))
+        const adjustedDelay = Math.max(minFinalDelay, Math.min(maxFinalDelay, finalDelay))
+        
+        // 记录延迟调整信息
+        if (this.consecutiveFailures > 0) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-ADAPTIVE-DELAY', 
+                `Adjusted delay due to ${this.consecutiveFailures} consecutive failures: ${Math.round(adjustedDelay/1000)}s`)
+        }
+        
+        return adjustedDelay
+    }
+
+    /**
+     * 处理搜索失败，调整自适应参数
+     */
+    private handleSearchFailure(): void {
+        this.consecutiveFailures++
+        
+        // 动态调整延迟倍数
+        const antiDetectionConfig = this.bot.config.searchSettings.antiDetection
+        if (antiDetectionConfig?.progressiveBackoff) {
+            const maxMultiplier = antiDetectionConfig.dynamicDelayMultiplier || 2.0
+            this.adaptiveDelayMultiplier = Math.min(
+                maxMultiplier,
+                1.0 + (this.consecutiveFailures * 0.2)
+            )
+        }
+        
+        this.bot.log(this.bot.isMobile, 'SEARCH-FAILURE-HANDLER', 
+            `Consecutive failures: ${this.consecutiveFailures}, Delay multiplier: ${this.adaptiveDelayMultiplier.toFixed(2)}`)
+        
+        // 如果连续失败次数过多，触发冷却期
+        const maxFailures = antiDetectionConfig?.maxConsecutiveFailures || 5
+        if (this.consecutiveFailures >= maxFailures) {
+            const cooldownMs = this.bot.utils.stringToMs(antiDetectionConfig?.cooldownPeriod || "5min")
+            this.bot.log(this.bot.isMobile, 'SEARCH-COOLDOWN', 
+                `Entering cooldown period: ${Math.round(cooldownMs/60000)} minutes`)
+        }
+    }
+    
+    /**
+     * 处理搜索成功，重置自适应参数
+     */
+    private handleSearchSuccess(): void {
+        if (this.consecutiveFailures > 0) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-SUCCESS-RECOVERY', 
+                `Recovered after ${this.consecutiveFailures} consecutive failures`)
+        }
+        
+        // 逐步恢复正常延迟
+        this.consecutiveFailures = 0
+        this.adaptiveDelayMultiplier = Math.max(1.0, this.adaptiveDelayMultiplier * 0.9)
     }
 
     /**
