@@ -1522,19 +1522,6 @@ export class Search extends Workers {
         return missingPoints
     }
 
-    private async closeContinuePopup(page: Page) {
-        try {
-            await page.waitForSelector('#sacs_close', { timeout: 1000 })
-            const continueButton = await page.$('#sacs_close')
-
-            if (continueButton) {
-                await continueButton.click()
-            }
-        } catch (error) {
-            // Continue if element is not found or other error occurs
-        }
-    }
-
     /**
      * 生成有上下文关联的搜索序列
      */
