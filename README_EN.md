@@ -116,6 +116,11 @@ services:
       "typingErrorRate": 0.12,      // ✏️ Typing error rate
       "thinkingPauseEnabled": true, // 🤔 Thinking pause
       "randomScrollEnabled": true   // 📜 Random scrolling
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,              // 🇨🇳 Enable China region adaptation
+      "useBaiduTrends": true,       // 🔍 Use Baidu trends
+      "useWeiboTrends": true        // 📱 Use Weibo trends
     }
   }
 }
@@ -170,6 +175,7 @@ services:
 - 📊 **Detailed Logging** - Complete execution records
 - ⚡ **High Performance** - Optimized concurrent processing
 - 🔧 **Flexible Configuration** - Rich customization options
+- 🇨🇳 **China Mainland Optimization** - Baidu/Weibo trends integration
 
 </td>
 </tr>
@@ -205,6 +211,7 @@ npm run debug-quiz "https://rewards.microsoft.com/quiz/xxx"
 | 🕐 **Timezone Synchronization** | Auto-set matching timezone |
 | 🗣️ **Multi-language Support** | Japanese, Chinese, English, etc. |
 | 🤖 **Behavior Simulation** | Typing errors, random scrolling, thinking pauses |
+| 🇨🇳 **China Region Adaptation** | Baidu trends, Weibo trends, localized queries |
 
 </div>
 
@@ -315,6 +322,11 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
       "randomScrollEnabled": true,
       "clickRandomEnabled": true,
       "timeBasedDelayEnabled": true
+    },
+    "chinaRegionAdaptation": {
+      "enabled": true,
+      "useBaiduTrends": true,
+      "useWeiboTrends": true
     }
   },
   "proxy": {

@@ -51,6 +51,12 @@
             "randomScrollEnabled": true,
             "clickRandomEnabled": true,
             "timeBasedDelayEnabled": true
+        },
+        "chinaRegionAdaptation": {
+            "enabled": false,
+            "useBaiduTrends": true,
+            "useWeiboTrends": true,
+            "fallbackToLocalQueries": true
         }
     },
     "logExcludeFunc": [

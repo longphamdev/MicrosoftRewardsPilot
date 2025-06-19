@@ -144,9 +144,33 @@ export class Search extends Workers {
             // Only for mobile searches
             if (maxLoop > 5 && this.bot.isMobile) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search didn\'t gain point for 5 iterations, likely bad User-Agent', 'warn')
-                // 不要立即退出，而是等待更长时间后继续尝试
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Waiting 3 minutes before continuing mobile search...', 'warn')
-                await this.bot.utils.wait(180000) // 等待3分钟
+                
+                // 尝试重新生成 User-Agent
+                try {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-UA-REFRESH', 'Attempting to refresh User-Agent...', 'warn')
+                    
+                    // 获取新的 User-Agent
+                    const { getUserAgent } = await import('../../util/UserAgent')
+                    const newUserAgent = await getUserAgent(this.bot.isMobile)
+                    
+                    // 更新浏览器的 User-Agent
+                    await page.setExtraHTTPHeaders({
+                        'User-Agent': newUserAgent.userAgent
+                    })
+                    
+                    this.bot.log(this.bot.isMobile, 'SEARCH-UA-REFRESH', `Updated User-Agent: ${newUserAgent.userAgent}`)
+                    
+                    // 等待较短时间后继续
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Waiting 30 seconds before continuing with new User-Agent...', 'warn')
+                    await this.bot.utils.wait(30000) // 等待30秒
+                    
+                } catch (error) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-UA-REFRESH', `Failed to refresh User-Agent: ${error}`, 'error')
+                    // 如果更新失败，等待3分钟
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Waiting 3 minutes before continuing mobile search...', 'warn')
+                    await this.bot.utils.wait(180000) // 等待3分钟
+                }
+                
                 maxLoop = 0 // 重置计数器
                 continue // 继续搜索而不是break
             }
@@ -253,36 +277,87 @@ export class Search extends Workers {
      */
     private async getGeoLocationWithFallback(data: DashboardData): Promise<any> {
         try {
-            // 尝试加载地理检测模块
+            // 优先级1: 尝试通过IP地址检测地理位置
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Attempting IP-based location detection...', 'log')
             const { GeoLanguageDetector } = await import('../../util/GeoLanguage')
-            return await GeoLanguageDetector.getCurrentLocation()
+            const ipLocation = await GeoLanguageDetector.getCurrentLocation()
+            
+            // 如果IP检测成功且不是未知位置
+            if (ipLocation && ipLocation.country !== 'Unknown' && ipLocation.ip !== 'Unknown') {
+                this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+                    `IP detection successful: ${ipLocation.country} (${ipLocation.countryCode}) - Language: ${ipLocation.language}`)
+                return ipLocation
+            }
         } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Failed to detect location, using profile data', 'warn')
-            
-            // 备用方案：使用用户资料中的国家信息
-            const profileCountry = data.userProfile?.attributes?.country || 'US'
-            
-            // 根据国家代码映射语言
-            const countryLanguageMap: Record<string, string> = {
-                'JP': 'ja', 'CN': 'zh-CN', 'KR': 'ko', 'VN': 'vi',
-                'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en',
-                'DE': 'de', 'FR': 'fr', 'ES': 'es', 'IT': 'it',
-                'BR': 'pt-BR', 'PT': 'pt', 'RU': 'ru', 'IN': 'hi',
-                'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es',
-                'TH': 'th', 'ID': 'id', 'MY': 'ms', 'PH': 'en',
-                'TW': 'zh-TW', 'HK': 'zh-HK', 'SG': 'en', 'NZ': 'en'
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'IP-based location detection failed', 'warn')
+        }
+        
+        // 优先级2: 使用账户资料中的国家信息
+        try {
+            const profileCountry = data.userProfile?.attributes?.country
+            if (profileCountry) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+                    `Using account profile country: ${profileCountry}`, 'log')
+                
+                // 根据国家代码映射语言
+                const countryLanguageMap: Record<string, string> = {
+                    'JP': 'ja', 'CN': 'zh-CN', 'KR': 'ko', 'VN': 'vi',
+                    'US': 'en', 'GB': 'en', 'AU': 'en', 'CA': 'en',
+                    'DE': 'de', 'FR': 'fr', 'ES': 'es', 'IT': 'it',
+                    'BR': 'pt-BR', 'PT': 'pt', 'RU': 'ru', 'IN': 'hi',
+                    'MX': 'es', 'AR': 'es', 'CL': 'es', 'CO': 'es',
+                    'TH': 'th', 'ID': 'id', 'MY': 'ms', 'PH': 'en',
+                    'TW': 'zh-TW', 'HK': 'zh-HK', 'SG': 'en', 'NZ': 'en'
+                }
+                
+                const inferredLanguage = countryLanguageMap[profileCountry] || 'en'
+                
+                return {
+                    country: profileCountry,
+                    countryCode: profileCountry,
+                    language: inferredLanguage,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    city: 'Unknown',
+                    currency: 'USD',
+                    ip: 'Unknown'
+                }
             }
-            
-            const inferredLanguage = countryLanguageMap[profileCountry] || 'en'
-            
-            this.bot.log(this.bot.isMobile, 'SEARCH-GEO-INFERRED', 
-                `Using profile country: ${profileCountry} with language: ${inferredLanguage}`)
-            
-            return {
-                country: profileCountry,
-                countryCode: profileCountry,
-                language: inferredLanguage
-            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Failed to use profile country', 'warn')
+        }
+        
+        // 优先级3: 使用时区推测（最后的备用方案）
+        this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 
+            'Falling back to timezone-based location detection', 'warn')
+        
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+        const timezoneMap: Record<string, { country: string, code: string, language: string }> = {
+            'Asia/Tokyo': { country: 'Japan', code: 'JP', language: 'ja' },
+            'Asia/Shanghai': { country: 'China', code: 'CN', language: 'zh-CN' },
+            'Asia/Seoul': { country: 'South Korea', code: 'KR', language: 'ko' },
+            'Asia/Ho_Chi_Minh': { country: 'Vietnam', code: 'VN', language: 'vi' },
+            'Asia/Bangkok': { country: 'Thailand', code: 'TH', language: 'th' },
+            'Europe/London': { country: 'United Kingdom', code: 'GB', language: 'en' },
+            'Europe/Paris': { country: 'France', code: 'FR', language: 'fr' },
+            'Europe/Berlin': { country: 'Germany', code: 'DE', language: 'de' },
+            'America/New_York': { country: 'United States', code: 'US', language: 'en' },
+            'America/Los_Angeles': { country: 'United States', code: 'US', language: 'en' },
+            'Australia/Sydney': { country: 'Australia', code: 'AU', language: 'en' }
+        }
+        
+        const location = timezoneMap[timezone] || { country: 'United States', code: 'US', language: 'en' }
+        
+        this.bot.log(this.bot.isMobile, 'SEARCH-GEO-TIMEZONE', 
+            `Using timezone ${timezone}: ${location.country} (${location.code}) with language: ${location.language}`)
+        
+        return {
+            country: location.country,
+            countryCode: location.code,
+            language: location.language,
+            timezone: timezone,
+            city: 'Unknown',
+            currency: 'USD',
+            ip: 'Unknown'
         }
     }
 
@@ -513,27 +588,97 @@ export class Search extends Workers {
         // Try a max of 5 times
         for (let i = 0; i < 5; i++) {
             try {
+                // 检查页面是否崩溃或关闭
+                if (searchPage.isClosed()) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search page was closed, creating new tab', 'warn')
+                    searchPage = await this.bot.browser.utils.getLatestTab(searchPage)
+                    await searchPage.goto('https://bing.com')
+                    await this.bot.utils.wait(2000)
+                }
+
+                // 检查页面是否仍然响应
+                try {
+                    await searchPage.evaluate(() => document.readyState, { timeout: 5000 })
+                } catch (evalError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Page evaluation failed, likely crashed. Creating new tab...', 'warn')
+                    
+                    // 创建新的页面
+                    try {
+                        const context = searchPage.context()
+                        searchPage = await context.newPage()
+                        await searchPage.goto('https://bing.com')
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Created new page after crash', 'warn')
+                        await this.bot.utils.wait(3000)
+                        // 强制垃圾回收（如果支持）
+                        try {
+                            await searchPage.evaluate(() => {
+                                if ((window as any).gc) {
+                                    (window as any).gc()
+                                }
+                            })
+                        } catch (gcError) {
+                            // 忽略GC错误
+                        }
+                        continue // 直接进入下一次循环
+                    } catch (newPageError) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Failed to create new page: ${newPageError}`, 'error')
+                        return await this.getEmptySearchCounters()
+                    }
+                }
+
                 // This page had already been set to the Bing.com page or the previous search listing, we just need to select it
                 searchPage = await this.bot.browser.utils.getLatestTab(searchPage)
 
-                // Go to top of the page
-                await searchPage.evaluate(() => {
-                    window.scrollTo(0, 0)
-                })
+                // 在操作前先等待页面稳定
+                await this.bot.utils.wait(1000)
+
+                // 安全的页面滚动 - 避免使用可能崩溃的 evaluate
+                try {
+                    await searchPage.keyboard.press('Home')
+                } catch (scrollError) {
+                    // 如果快捷键失败，尝试直接导航到顶部
+                    try {
+                        await searchPage.evaluate(() => window.scrollTo(0, 0), { timeout: 2000 })
+                    } catch (evalError) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Unable to scroll to top, continuing...', 'warn')
+                    }
+                }
 
                 await this.bot.utils.wait(500)
 
                 const searchBar = '#sb_form_q'
-                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 10000 })
-                await searchPage.click(searchBar) // Focus on the textarea
+                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 15000 })
+                
+                // 添加焦点检查和重试机制
+                let clickRetries = 0
+                while (clickRetries < 3) {
+                    try {
+                        await searchPage.click(searchBar, { timeout: 5000 })
+                        break
+                    } catch (clickError) {
+                        clickRetries++
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search bar click failed, retry ${clickRetries}/3`, 'warn')
+                        if (clickRetries >= 3) {
+                            throw clickError
+                        }
+                        await this.bot.utils.wait(1000)
+                    }
+                }
                 
                 // 人类化的思考停顿
                 await this.humanThinkingPause()
                 
-                await searchPage.keyboard.down(platformControlKey)
-                await searchPage.keyboard.press('A')
-                await searchPage.keyboard.press('Backspace')
-                await searchPage.keyboard.up(platformControlKey)
+                // 更安全的文本清除方法
+                try {
+                    await searchPage.keyboard.down(platformControlKey)
+                    await searchPage.keyboard.press('A')
+                    await searchPage.keyboard.press('Backspace')
+                    await searchPage.keyboard.up(platformControlKey)
+                } catch (keyboardError) {
+                    // 如果键盘操作失败，尝试使用 fill 方法
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Keyboard clearing failed, using fill method', 'warn')
+                    await searchPage.fill(searchBar, '')
+                }
                 
                 // 人类化的打字输入
                 await this.humanTypeText(searchPage, query)
@@ -557,16 +702,33 @@ export class Search extends Workers {
                 const resultPage = await this.bot.browser.utils.getLatestTab(searchPage)
                 this.searchPageURL = new URL(resultPage.url()).href // Set the results page
 
+                // 添加页面加载超时检查
+                try {
+                    await resultPage.waitForLoadState('domcontentloaded', { timeout: 15000 })
+                } catch (loadError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Page load timeout: ${loadError}`, 'warn')
+                    // 继续执行，可能页面已经部分加载
+                }
+
                 await this.bot.browser.utils.reloadBadPage(resultPage)
 
-                // 增强的人类行为模拟
-                await this.simulateHumanBehavior(resultPage)
+                // 更安全的人类行为模拟
+                try {
+                    await this.simulateHumanBehaviorSafe(resultPage)
+                } catch (behaviorError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', `Behavior simulation failed: ${behaviorError}`, 'warn')
+                    // 继续执行搜索
+                }
 
                 // 10%概率查看搜索结果第二页
                 if (Math.random() < 0.1) {
-                    const navigatedToSecondPage = await this.navigateToSecondPage(resultPage)
-                    if (navigatedToSecondPage) {
-                        this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', 'Viewed second page of search results')
+                    try {
+                        const navigatedToSecondPage = await this.navigateToSecondPage(resultPage)
+                        if (navigatedToSecondPage) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', 'Viewed second page of search results')
+                        }
+                    } catch (navError) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR', `Second page navigation failed: ${navError}`, 'warn')
                     }
                 }
 
@@ -593,15 +755,52 @@ export class Search extends Workers {
                 }
 
             } catch (error) {
-                // 检查是否是浏览器关闭相关的错误
+                // 增强的错误检测和分类
                 const errorMessage = String(error)
                 const isBrowserClosed = errorMessage.includes('Target page, context or browser has been closed') ||
                                       errorMessage.includes('page.reload: Target page') ||
                                       searchPage.isClosed()
 
+                const isTargetCrashed = errorMessage.includes('Target crashed') ||
+                                       errorMessage.includes('page.evaluate: Target crashed') ||
+                                       errorMessage.includes('Protocol error')
+
+                const isMemoryError = errorMessage.includes('out of memory') ||
+                                     errorMessage.includes('memory') ||
+                                     errorMessage.includes('OOM')
+
                 if (isBrowserClosed) {
                     this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Browser or page has been closed, ending search', 'warn')
                     return await this.getEmptySearchCounters()
+                }
+
+                if (isTargetCrashed || isMemoryError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Page crashed (attempt ${i+1}/5): ${errorMessage}`, 'error')
+                    
+                    // 如果页面崩溃，尝试创建新页面
+                    if (i < 4) { // 还有重试机会
+                        try {
+                            const context = searchPage.context()
+                            searchPage = await context.newPage()
+                            await searchPage.goto('https://bing.com')
+                            this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Created new page after crash', 'warn')
+                            await this.bot.utils.wait(3000)
+                            // 强制垃圾回收（如果支持）
+                            try {
+                                await searchPage.evaluate(() => {
+                                    if ((window as any).gc) {
+                                        (window as any).gc()
+                                    }
+                                })
+                            } catch (gcError) {
+                                // 忽略GC错误
+                            }
+                            continue // 直接进入下一次循环
+                        } catch (newPageError) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Failed to create new page: ${newPageError}`, 'error')
+                            return await this.getEmptySearchCounters()
+                        }
+                    }
                 }
 
                 if (i === 4) { // 第5次重试（索引从0开始）
@@ -628,6 +827,184 @@ export class Search extends Workers {
 
         this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search failed after 5 retries, ending', 'error')
         return await this.getEmptySearchCounters()
+    }
+
+    /**
+     * 更安全的人类行为模拟，减少页面崩溃风险
+     */
+    private async simulateHumanBehaviorSafe(page: Page): Promise<void> {
+        try {
+            // 移动端特殊处理
+            if (this.bot.isMobile) {
+                await this.simulateMobileUserBehaviorSafe(page)
+                return
+            }
+            
+            // 桌面端安全行为模拟
+            const behaviors = ['scroll', 'click', 'simple_wait', 'none']
+            const selectedBehavior = behaviors[Math.floor(Math.random() * behaviors.length)]
+            
+            switch (selectedBehavior) {
+                case 'scroll':
+                    if (this.bot.config.searchSettings.scrollRandomResults) {
+                        await this.bot.utils.wait(1000 + Math.random() * 2000)
+                        await this.safeRandomScroll(page)
+                    }
+                    break
+                    
+                case 'click':
+                    if (this.bot.config.searchSettings.clickRandomResults) {
+                        await this.bot.utils.wait(2000 + Math.random() * 3000)
+                        await this.safeClickRandomLink(page)
+                    }
+                    break
+                    
+                case 'simple_wait':
+                    // 简单等待，最安全的选择
+                    await this.bot.utils.wait(2000 + Math.random() * 3000)
+                    break
+                    
+                case 'none':
+                    // 只是查看结果，不做任何操作
+                    await this.bot.utils.wait(3000 + Math.random() * 2000)
+                    break
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-BEHAVIOR-SAFE', `Safe behavior simulation failed: ${error}`, 'warn')
+            // 失败时简单等待
+            await this.bot.utils.wait(2000)
+        }
+    }
+
+    /**
+     * 更安全的移动端行为模拟
+     */
+    private async simulateMobileUserBehaviorSafe(page: Page): Promise<void> {
+        try {
+            // 使用简单的等待和基本操作，避免复杂的evaluate调用
+            const behaviorPattern = Math.random()
+            
+            if (behaviorPattern < 0.4) {
+                // 40% - 简单等待模式（最安全）
+                await this.bot.utils.wait(2000 + Math.random() * 3000)
+                
+            } else if (behaviorPattern < 0.7) {
+                // 30% - 基本滚动模式
+                await this.bot.utils.wait(1000 + Math.random() * 1000)
+                
+                // 使用键盘滚动而不是evaluate
+                for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+                    await page.keyboard.press('PageDown')
+                    await this.bot.utils.wait(1000 + Math.random() * 1500)
+                }
+                
+            } else {
+                // 30% - 尝试安全点击
+                if (this.bot.config.searchSettings.clickRandomResults) {
+                    await this.bot.utils.wait(1500 + Math.random() * 1500)
+                    await this.safeClickMobileResult(page)
+                }
+            }
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'MOBILE-BEHAVIOR-SAFE', `Safe mobile behavior failed: ${error}`, 'warn')
+            // 失败时简单等待
+            await this.bot.utils.wait(2000)
+        }
+    }
+
+    /**
+     * 更安全的随机滚动
+     */
+    private async safeRandomScroll(page: Page): Promise<void> {
+        try {
+            // 使用键盘滚动而不是evaluate，更稳定
+            const scrollSteps = 1 + Math.floor(Math.random() * 3) // 1-3次滚动
+            
+            for (let i = 0; i < scrollSteps; i++) {
+                await page.keyboard.press('PageDown')
+                await this.bot.utils.wait(800 + Math.random() * 1200)
+            }
+            
+            // 偶尔滚回顶部
+            if (Math.random() < 0.3) {
+                await this.bot.utils.wait(500)
+                await page.keyboard.press('Home')
+            }
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SAFE-SCROLL', `Safe scroll failed: ${error}`, 'warn')
+        }
+    }
+
+    /**
+     * 更安全的链接点击
+     */
+    private async safeClickRandomLink(page: Page): Promise<void> {
+        try {
+            const selectors = [
+                '#b_results .b_algo h2 a',
+                '.b_algo h2 a',
+                '#b_results h2 a'
+            ]
+            
+            for (const selector of selectors) {
+                try {
+                    const elements = await page.$$(selector)
+                    if (elements.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * Math.min(elements.length, 3)) // 只点击前3个
+                        const element = elements[randomIndex]
+                        
+                        if (element) {
+                            await element.click({ timeout: 3000 })
+                            await this.bot.utils.wait(2000 + Math.random() * 3000)
+                            
+                            // 返回搜索结果
+                            await page.goBack({ timeout: 5000 })
+                            await this.bot.utils.wait(1000)
+                            break
+                        }
+                    }
+                } catch (selectorError) {
+                    // 继续尝试下一个选择器
+                    continue
+                }
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SAFE-CLICK', `Safe click failed: ${error}`, 'warn')
+        }
+    }
+
+    /**
+     * 更安全的移动端结果点击
+     */
+    private async safeClickMobileResult(page: Page): Promise<void> {
+        try {
+            const mobileSelectors = [
+                '#b_results .b_algo h2 a',
+                '.b_algo h2 a'
+            ]
+            
+            for (const selector of mobileSelectors) {
+                try {
+                    const elements = await page.$$(selector)
+                    if (elements.length > 0) {
+                        const element = elements[0] // 总是点击第一个结果
+                        if (element) {
+                            await element.click({ timeout: 3000 })
+                            await this.bot.utils.wait(3000 + Math.random() * 2000)
+                            await page.goBack({ timeout: 5000 })
+                            await this.bot.utils.wait(1000)
+                            break
+                        }
+                    }
+                } catch (selectorError) {
+                    continue
+                }
+            }
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SAFE-MOBILE-CLICK', `Safe mobile click failed: ${error}`, 'warn')
+        }
     }
 
     /**
@@ -682,222 +1059,6 @@ export class Search extends Workers {
             } else {
                 await this.bot.utils.wait(typingDelay)
             }
-        }
-    }
-
-    /**
-     * 增强的人类行为模拟
-     */
-    private async simulateHumanBehavior(page: Page): Promise<void> {
-        // 移动端特殊处理
-        if (this.bot.isMobile) {
-            await this.simulateMobileUserBehavior(page)
-            return
-        }
-        
-        // 桌面端原有逻辑
-        const behaviors = ['scroll', 'click', 'both', 'none']
-        const selectedBehavior = behaviors[Math.floor(Math.random() * behaviors.length)]
-        
-        switch (selectedBehavior) {
-            case 'scroll':
-                if (this.bot.config.searchSettings.scrollRandomResults) {
-                    await this.bot.utils.wait(1000 + Math.random() * 2000)
-                    await this.enhancedRandomScroll(page)
-                }
-                break
-                
-            case 'click':
-                if (this.bot.config.searchSettings.clickRandomResults) {
-                    await this.bot.utils.wait(2000 + Math.random() * 3000)
-                    await this.clickRandomLink(page)
-                }
-                break
-                
-            case 'both':
-                if (this.bot.config.searchSettings.scrollRandomResults) {
-                    await this.bot.utils.wait(1000 + Math.random() * 1000)
-                    await this.enhancedRandomScroll(page)
-                }
-                if (this.bot.config.searchSettings.clickRandomResults) {
-                    await this.bot.utils.wait(1000 + Math.random() * 2000)
-                    await this.clickRandomLink(page)
-                }
-                break
-                
-            case 'none':
-                // 只是查看结果，不做任何操作
-                await this.bot.utils.wait(3000 + Math.random() * 2000)
-                break
-        }
-    }
-
-    /**
-     * 移动端专用的人类行为模拟
-     */
-    private async simulateMobileUserBehavior(page: Page): Promise<void> {
-        try {
-            // 模拟移动设备的触摸操作
-            const viewportHeight = await page.evaluate(() => window.innerHeight)
-            const viewportWidth = await page.evaluate(() => window.innerWidth)
-            
-            // 随机选择行为模式
-            const behaviorPattern = Math.random()
-            
-            if (behaviorPattern < 0.3) {
-                // 30% - 快速浏览模式
-                await this.bot.utils.wait(1000 + Math.random() * 1000)
-                
-                // 快速向下滑动
-                await page.mouse.move(viewportWidth / 2, viewportHeight * 0.8)
-                await page.mouse.down()
-                await page.mouse.move(viewportWidth / 2, viewportHeight * 0.2, { steps: 10 })
-                await page.mouse.up()
-                
-                await this.bot.utils.wait(500 + Math.random() * 500)
-                
-            } else if (behaviorPattern < 0.6) {
-                // 30% - 仔细阅读模式
-                await this.bot.utils.wait(2000 + Math.random() * 2000)
-                
-                // 缓慢滚动，模拟阅读
-                for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
-                    const scrollDistance = viewportHeight * (0.3 + Math.random() * 0.4)
-                    await page.evaluate((distance) => {
-                        window.scrollBy({ top: distance, behavior: 'smooth' })
-                    }, scrollDistance)
-                    
-                    // 阅读停顿
-                    await this.bot.utils.wait(1500 + Math.random() * 2000)
-                }
-                
-            } else if (behaviorPattern < 0.8) {
-                // 20% - 点击搜索结果
-                if (this.bot.config.searchSettings.clickRandomResults) {
-                    await this.bot.utils.wait(1500 + Math.random() * 1500)
-                    
-                    // 尝试点击搜索结果
-                    const clicked = await this.clickMobileSearchResult(page)
-                    if (clicked) {
-                        // 在新页面停留一段时间
-                        await this.bot.utils.wait(5000 + Math.random() * 5000)
-                        
-                        // 返回搜索结果
-                        await page.goBack()
-                        await this.bot.utils.wait(1000 + Math.random() * 1000)
-                    }
-                }
-                
-            } else {
-                // 20% - 最小交互
-                await this.bot.utils.wait(2000 + Math.random() * 3000)
-                
-                // 轻微滚动
-                await page.evaluate(() => {
-                    window.scrollBy({ top: 200, behavior: 'smooth' })
-                })
-            }
-            
-            // 偶尔模拟误触（5%概率）
-            if (Math.random() < 0.05) {
-                const randomX = Math.random() * viewportWidth
-                const randomY = Math.random() * viewportHeight
-                await page.mouse.click(randomX, randomY)
-                await this.bot.utils.wait(500)
-            }
-            
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'MOBILE-BEHAVIOR', `Error simulating mobile behavior: ${error}`, 'warn')
-        }
-    }
-
-    /**
-     * 移动端点击搜索结果
-     */
-    private async clickMobileSearchResult(page: Page): Promise<boolean> {
-        try {
-            // 移动端搜索结果选择器
-            const mobileResultSelectors = [
-                '#b_results .b_algo h2 a',
-                '.b_algo .b_attribution cite',
-                '.b_ans .b_rich h2 a'
-            ]
-            
-            for (const selector of mobileResultSelectors) {
-                const elements = await page.$$(selector)
-                if (elements.length > 0) {
-                    // 随机选择一个结果（偏向前面的结果）
-                    const index = Math.floor(Math.random() * Math.random() * elements.length)
-                    const element = elements[index]
-                    if (element) {
-                        try {
-                            // 首先尝试正常点击
-                            await element.click({ timeout: 2000 })
-                            return true
-                        } catch (clickError) {
-                            // 如果正常点击失败，尝试强制点击
-                            try {
-                                await element.click({ force: true, timeout: 2000 })
-                                this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', 'Used force click for mobile search result')
-                                return true
-                            } catch (forceClickError) {
-                                // 如果强制点击也失败，使用JavaScript点击
-                                try {
-                                    await page.evaluate(({ sel, idx }: { sel: string, idx: number }) => {
-                                        const els = document.querySelectorAll(sel)
-                                        if (els[idx]) {
-                                            (els[idx] as HTMLElement).click()
-                                        }
-                                    }, { sel: selector, idx: index })
-                                    this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', 'Used JavaScript click for mobile search result')
-                                    return true
-                                } catch (jsClickError) {
-                                    // 继续尝试下一个选择器
-                                    continue
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            return false
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'MOBILE-CLICK', `Failed to click search result: ${error}`, 'warn')
-            return false
-        }
-    }
-
-    /**
-     * 增强的随机滚动
-     */
-    private async enhancedRandomScroll(page: Page): Promise<void> {
-        try {
-            const viewportHeight = await page.evaluate(() => window.innerHeight)
-            
-            // 模拟人类阅读的滚动模式
-            const scrollSteps = 2 + Math.floor(Math.random() * 4) // 2-5次滚动
-            
-            for (let i = 0; i < scrollSteps; i++) {
-                const scrollDistance = Math.floor(Math.random() * viewportHeight * 0.8)
-                await page.evaluate((distance) => {
-                    window.scrollBy(0, distance)
-                }, scrollDistance)
-                
-                // 阅读停顿
-                await this.bot.utils.wait(800 + Math.random() * 1500)
-            }
-            
-            // 偶尔滚回顶部
-            if (Math.random() < 0.3) {
-                await this.bot.utils.wait(500)
-                await page.evaluate(() => {
-                    window.scrollTo(0, 0)
-                })
-            }
-            
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-ENHANCED-SCROLL', 'An error occurred:' + error, 'error')
         }
     }
 
@@ -974,6 +1135,12 @@ export class Search extends Workers {
     }
 
     private async getGoogleTrends(geoLocale: string = 'JP'): Promise<GoogleSearch[]> {
+        // 检查是否是中国大陆地区
+        if (geoLocale.toUpperCase() === 'CN' || geoLocale.toUpperCase() === 'ZH-CN') {
+            this.bot.log(this.bot.isMobile, 'SEARCH-TRENDS', 'Detected China region, using alternative trend source')
+            return await this.getChinaTrends()
+        }
+
         const queryTerms: GoogleSearch[] = []
         this.bot.log(this.bot.isMobile, 'SEARCH-GOOGLE-TRENDS', `Generating search queries, can take a while! | GeoLocale: ${geoLocale}`)
 
@@ -1015,6 +1182,262 @@ export class Search extends Workers {
         return queryTerms
     }
 
+    /**
+     * 获取中国地区的热门搜索趋势
+     * 使用百度、微博等本地化数据源
+     */
+    private async getChinaTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        const chinaConfig = this.bot.config.searchSettings.chinaRegionAdaptation
+        
+        // 如果未启用中国地区适配，直接返回备用查询
+        if (!chinaConfig?.enabled) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', 'China region adaptation disabled, using fallback queries')
+            return this.getChineseFallbackQueries()
+        }
+        
+        try {
+            // 方案1：使用百度热搜榜
+            if (chinaConfig.useBaiduTrends) {
+                const baiduTrends = await this.getBaiduTrends()
+                if (baiduTrends.length > 0) {
+                    queryTerms.push(...baiduTrends)
+                }
+            }
+
+            // 方案2：使用微博热搜
+            if (chinaConfig.useWeiboTrends) {
+                const weiboTrends = await this.getWeiboTrends()
+                if (weiboTrends.length > 0) {
+                    queryTerms.push(...weiboTrends)
+                }
+            }
+
+            // 如果获取失败或数量不足，使用预定义的中文搜索词
+            if (chinaConfig.fallbackToLocalQueries && queryTerms.length < 50) {
+                const fallbackQueries = this.getChineseFallbackQueries()
+                queryTerms.push(...fallbackQueries)
+            }
+
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', `Generated ${queryTerms.length} search queries for China region`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-CHINA-TRENDS', `Error getting China trends: ${error}`, 'warn')
+            // 使用预定义的备用查询
+            if (chinaConfig.fallbackToLocalQueries) {
+                return this.getChineseFallbackQueries()
+            }
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 获取百度热搜数据
+     */
+    private async getBaiduTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        
+        try {
+            // 百度热搜榜API
+            const request: AxiosRequestConfig = {
+                url: 'https://top.baidu.com/board?tab=realtime',
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'zh-CN,zh;q=0.9'
+                }
+            }
+
+            const response = await this.bot.axios.request(request, false) // 不使用代理
+            const htmlContent = response.data as string
+
+            // 解析热搜数据
+            // 百度热搜数据通常在 window.__INITIAL_STATE__ 中
+            const dataMatch = htmlContent.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/)
+            if (dataMatch && dataMatch[1]) {
+                try {
+                    const data = JSON.parse(dataMatch[1])
+                    const hotList = data?.hotList || []
+                    
+                    for (const item of hotList.slice(0, 30)) { // 取前30个热搜
+                        if (item.word) {
+                            queryTerms.push({
+                                topic: item.word,
+                                related: this.generateChineseRelatedTerms(item.word)
+                            })
+                        }
+                    }
+                } catch (parseError) {
+                    this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', 'Failed to parse Baidu trends data', 'warn')
+                }
+            }
+
+            this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', `Fetched ${queryTerms.length} trends from Baidu`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'BAIDU-TRENDS', `Error fetching Baidu trends: ${error}`, 'warn')
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 获取微博热搜数据
+     */
+    private async getWeiboTrends(): Promise<GoogleSearch[]> {
+        const queryTerms: GoogleSearch[] = []
+        
+        try {
+            // 微博热搜API
+            const request: AxiosRequestConfig = {
+                url: 'https://weibo.com/ajax/side/hotSearch',
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Referer': 'https://weibo.com/'
+                }
+            }
+
+            const response = await this.bot.axios.request(request, false) // 不使用代理
+            const data = response.data
+
+            if (data?.data?.realtime) {
+                for (const item of data.data.realtime.slice(0, 30)) { // 取前30个热搜
+                    if (item.word) {
+                        queryTerms.push({
+                            topic: item.word,
+                            related: this.generateChineseRelatedTerms(item.word)
+                        })
+                    }
+                }
+            }
+
+            this.bot.log(this.bot.isMobile, 'WEIBO-TRENDS', `Fetched ${queryTerms.length} trends from Weibo`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'WEIBO-TRENDS', `Error fetching Weibo trends: ${error}`, 'warn')
+        }
+
+        return queryTerms
+    }
+
+    /**
+     * 生成中文相关搜索词
+     */
+    private generateChineseRelatedTerms(baseQuery: string): string[] {
+        const patterns = [
+            `${baseQuery} 最新消息`,
+            `${baseQuery} 是什么`,
+            `${baseQuery} 怎么样`,
+            `${baseQuery} 详情`,
+            `${baseQuery} 原因`,
+            `${baseQuery} 结果`,
+            `${baseQuery} 影响`,
+            `${baseQuery} 评论`
+        ]
+        
+        // 随机选择3-5个相关词
+        const selectedCount = 3 + Math.floor(Math.random() * 3)
+        return this.bot.utils.shuffleArray(patterns).slice(0, selectedCount)
+    }
+
+    /**
+     * 中文备用搜索查询
+     */
+    private getChineseFallbackQueries(): GoogleSearch[] {
+        const currentDate = new Date()
+        const currentYear = currentDate.getFullYear()
+        const currentMonth = currentDate.getMonth() + 1
+        
+        const topics = [
+            // 时事热点
+            `${currentYear}年${currentMonth}月新闻`,
+            '今日头条',
+            '热点新闻',
+            '国内新闻',
+            '国际新闻',
+            '财经新闻',
+            '科技新闻',
+            '体育新闻',
+            '娱乐新闻',
+            
+            // 生活相关
+            '天气预报',
+            '美食推荐',
+            '旅游攻略',
+            '健康养生',
+            '购物优惠',
+            '电影推荐',
+            '音乐排行榜',
+            '游戏攻略',
+            
+            // 科技话题
+            '人工智能',
+            '5G技术',
+            '新能源汽车',
+            '手机评测',
+            '电脑配置',
+            '软件推荐',
+            '编程教程',
+            '区块链',
+            
+            // 热门品牌和产品
+            '华为',
+            '小米',
+            'OPPO',
+            'vivo',
+            '比亚迪',
+            '特斯拉',
+            '抖音',
+            '微信',
+            '支付宝',
+            '淘宝',
+            '京东',
+            '拼多多',
+            
+            // 教育学习
+            '考研',
+            '高考',
+            '英语学习',
+            '编程学习',
+            '职业规划',
+            '面试技巧',
+            
+            // 投资理财
+            '股票行情',
+            '基金推荐',
+            '理财产品',
+            '房价走势',
+            '黄金价格',
+            
+            // 热门话题
+            '减肥方法',
+            '护肤技巧',
+            '穿搭推荐',
+            '家居装修',
+            '宠物养护',
+            '植物种植',
+            '美食制作',
+            '旅游景点',
+            
+            // 节日相关（根据时间动态调整）
+            '春节',
+            '中秋节',
+            '国庆节',
+            '双十一',
+            '双十二'
+        ]
+        
+        // 将简单的字符串转换为 GoogleSearch 格式
+        return topics.map(topic => ({
+            topic,
+            related: this.generateChineseRelatedTerms(topic)
+        }))
+    }
+
     private extractJsonFromResponse(text: string): GoogleTrendsResponse[1] | null {
         const lines = text.split('\n')
         for (const line of lines) {
@@ -1049,86 +1472,6 @@ export class Search extends Workers {
         }
 
         return []
-    }
-
-    private async clickRandomLink(page: Page) {
-        try {
-            // 尝试多种方式点击搜索结果
-            const clickAttempts = [
-                // 方法1：强制点击（忽略拦截元素）
-                async () => {
-                    await page.click('#b_results .b_algo h2 a', { 
-                        timeout: 2000, 
-                        force: true  // 强制点击，即使被其他元素遮挡
-                    })
-                },
-                // 方法2：使用JavaScript直接点击
-                async () => {
-                    await page.evaluate(() => {
-                        const link = document.querySelector('#b_results .b_algo h2 a') as HTMLElement
-                        if (link) {
-                            link.click()
-                        }
-                    })
-                },
-                // 方法3：尝试点击可见的搜索结果
-                async () => {
-                    const links = await page.$$('#b_results .b_algo h2 a')
-                    for (const link of links) {
-                        const isVisible = await link.isVisible()
-                        if (isVisible) {
-                            await link.click({ timeout: 1000 })
-                            break
-                        }
-                    }
-                }
-            ]
-
-            // 尝试不同的点击方法
-            let clicked = false
-            for (const attemptClick of clickAttempts) {
-                try {
-                    await attemptClick()
-                    clicked = true
-                    this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'Successfully clicked search result')
-                    break
-                } catch (error) {
-                    // 继续尝试下一个方法
-                    continue
-                }
-            }
-
-            if (!clicked) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'Failed to click any search result', 'warn')
-                return
-            }
-
-            // Only used if the browser is not the edge browser (continue on Edge popup)
-            await this.closeContinuePopup(page)
-
-            // Stay for 10 seconds for page to load and "visit"
-            await this.bot.utils.wait(10000)
-
-            // Will get current tab if no new one is created, this will always be the visited site or the result page if it failed to click
-            let lastTab = await this.bot.browser.utils.getLatestTab(page)
-
-            let lastTabURL = new URL(lastTab.url()) // Get new tab info, this is the website we're visiting
-
-            // Check if the URL is different from the original one, don't loop more than 5 times.
-            let i = 0
-            while (lastTabURL.href !== this.searchPageURL && i < 5) {
-
-                await this.closeTabs(lastTab)
-
-                // End of loop, refresh lastPage
-                lastTab = await this.bot.browser.utils.getLatestTab(page) // Finally update the lastTab var again
-                lastTabURL = new URL(lastTab.url()) // Get new tab info
-                i++
-            }
-
-        } catch (error) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-RANDOM-CLICK', 'An error occurred:' + error, 'error')
-        }
     }
 
     private async closeTabs(lastTab: Page) {
@@ -1177,19 +1520,6 @@ export class Search extends Workers {
             + (genericData ? genericData.pointProgressMax - genericData.pointProgress : 0)
 
         return missingPoints
-    }
-
-    private async closeContinuePopup(page: Page) {
-        try {
-            await page.waitForSelector('#sacs_close', { timeout: 1000 })
-            const continueButton = await page.$('#sacs_close')
-
-            if (continueButton) {
-                await continueButton.click()
-            }
-        } catch (error) {
-            // Continue if element is not found or other error occurs
-        }
     }
 
     /**
@@ -1307,7 +1637,7 @@ export class Search extends Workers {
                     this.bot.log(this.bot.isMobile, 'SEARCH-PAGINATION', 'Navigated to second page')
                     
                     // 在第二页稍作停留
-                    await this.enhancedRandomScroll(page)
+                    await this.safeRandomScroll(page)
                     
                     return true
                 }

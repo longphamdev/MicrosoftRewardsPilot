@@ -73,26 +73,47 @@ export class Quiz extends Workers {
                     const answers: string[] = []
 
                     for (let i = 0; i < quizData.numberOfOptions; i++) {
-                        const answerSelector = await page.waitForSelector(`#rqAnswerOption${i}`, { state: 'visible', timeout: 10000 })
-                        const answerAttribute = await answerSelector?.evaluate(el => el.getAttribute('iscorrectoption'))
+                        try {
+                            // 先等待元素存在（不管是否可见）
+                            await page.waitForSelector(`#rqAnswerOption${i}`, { state: 'attached', timeout: 5000 })
+                            
+                            // 尝试使元素可见（如果是隐藏的）
+                            await page.evaluate((selector) => {
+                                const element = document.querySelector(selector)
+                                if (element) {
+                                    (element as HTMLElement).style.display = 'block';
+                                    (element as HTMLElement).style.visibility = 'visible';
+                                }
+                            }, `#rqAnswerOption${i}`)
+                            
+                            // 等待一下让样式生效
+                            await this.bot.utils.wait(100)
+                            
+                            const answerElement = await page.$(`#rqAnswerOption${i}`)
+                            const answerAttribute = await answerElement?.getAttribute('iscorrectoption')
 
-                        if (answerAttribute && answerAttribute.toLowerCase() === 'true') {
-                            answers.push(`#rqAnswerOption${i}`)
+                            if (answerAttribute && answerAttribute.toLowerCase() === 'true') {
+                                answers.push(`#rqAnswerOption${i}`)
+                            }
+                        } catch (error) {
+                            this.bot.log(this.bot.isMobile, 'QUIZ', `Failed to check answer option ${i}: ${error}`, 'warn')
                         }
                     }
 
                     // Click the answers
                     for (const answer of answers) {
-                        await page.waitForSelector(answer, { state: 'visible', timeout: 2000 })
+                        try {
+                            // 使用force click来点击可能隐藏的元素
+                            await page.click(answer, { force: true })
 
-                        // Click the answer on page
-                        await page.click(answer)
-
-                        const refreshSuccess = await this.bot.browser.func.waitForQuizRefresh(page)
-                        if (!refreshSuccess) {
-                            await page.close()
-                            this.bot.log(this.bot.isMobile, 'QUIZ', 'An error occurred, refresh was unsuccessful', 'error')
-                            return
+                            const refreshSuccess = await this.bot.browser.func.waitForQuizRefresh(page)
+                            if (!refreshSuccess) {
+                                await page.close()
+                                this.bot.log(this.bot.isMobile, 'QUIZ', 'An error occurred, refresh was unsuccessful', 'error')
+                                return
+                            }
+                        } catch (error) {
+                            this.bot.log(this.bot.isMobile, 'QUIZ', `Failed to click answer ${answer}: ${error}`, 'warn')
                         }
                     }
 
@@ -102,21 +123,38 @@ export class Quiz extends Workers {
                     const correctOption = quizData.correctAnswer
 
                     for (let i = 0; i < quizData.numberOfOptions; i++) {
+                        try {
+                            // 先等待元素存在（不管是否可见）
+                            await page.waitForSelector(`#rqAnswerOption${i}`, { state: 'attached', timeout: 5000 })
+                            
+                            // 尝试使元素可见（如果是隐藏的）
+                            await page.evaluate((selector) => {
+                                const element = document.querySelector(selector)
+                                if (element) {
+                                    (element as HTMLElement).style.display = 'block';
+                                    (element as HTMLElement).style.visibility = 'visible';
+                                }
+                            }, `#rqAnswerOption${i}`)
+                            
+                            await this.bot.utils.wait(100)
+                            
+                            const answerElement = await page.$(`#rqAnswerOption${i}`)
+                            const dataOption = await answerElement?.getAttribute('data-option')
 
-                        const answerSelector = await page.waitForSelector(`#rqAnswerOption${i}`, { state: 'visible', timeout: 10000 })
-                        const dataOption = await answerSelector?.evaluate(el => el.getAttribute('data-option'))
+                            if (dataOption === correctOption) {
+                                // 使用force click来点击可能隐藏的元素
+                                await page.click(`#rqAnswerOption${i}`, { force: true })
 
-                        if (dataOption === correctOption) {
-                            // Click the answer on page
-                            await page.click(`#rqAnswerOption${i}`)
-
-                            const refreshSuccess = await this.bot.browser.func.waitForQuizRefresh(page)
-                            if (!refreshSuccess) {
-                                await page.close()
-                                this.bot.log(this.bot.isMobile, 'QUIZ', 'An error occurred, refresh was unsuccessful', 'error')
-                                return
+                                const refreshSuccess = await this.bot.browser.func.waitForQuizRefresh(page)
+                                if (!refreshSuccess) {
+                                    await page.close()
+                                    this.bot.log(this.bot.isMobile, 'QUIZ', 'An error occurred, refresh was unsuccessful', 'error')
+                                    return
+                                }
+                                break // 找到正确答案后退出循环
                             }
-                            break // 找到正确答案后退出循环
+                        } catch (error) {
+                            this.bot.log(this.bot.isMobile, 'QUIZ', `Failed to check answer option ${i}: ${error}`, 'warn')
                         }
                     }
                     await this.bot.utils.wait(2000)
