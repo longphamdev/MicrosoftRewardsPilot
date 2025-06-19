@@ -12,7 +12,7 @@ export async function getUserAgent(isMobile: boolean) {
     const app = await getAppComponents(isMobile)
 
     const uaTemplate = isMobile ?
-        `Mozilla/5.0 (${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${app.chrome_reduced_version} Mobile Safari/537.36 EdgA/${app.edge_version}` :
+        `Mozilla/5.0 (Linux; ${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${app.chrome_reduced_version} Mobile Safari/537.36 EdgA/${app.edge_version}` :
         `Mozilla/5.0 (${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${app.chrome_reduced_version} Safari/537.36 Edg/${app.edge_version}`
 
     const platformVersion = `${isMobile ? Math.floor(Math.random() * 5) + 9 : Math.floor(Math.random() * 15) + 1}.0.0`
@@ -83,14 +83,27 @@ export async function getEdgeVersions(isMobile: boolean) {
 }
 
 export function getSystemComponents(mobile: boolean): string {
-    const osId: string = mobile ? 'Linux' : 'Windows NT 10.0'
-    const uaPlatform: string = mobile ? `Android 1${Math.floor(Math.random() * 5)}` : 'Win64; x64'
-
     if (mobile) {
-        return `${uaPlatform}; ${osId}; K`
+        // 更多样化的 Android 版本和设备信息
+        const androidVersions = [
+            'Android 12', 'Android 13', 'Android 14', 'Android 15'
+        ]
+        const deviceModels = [
+            'SM-G991B', 'SM-G998B', 'SM-S918B', 'SM-A525F', 'SM-A736B',
+            'Pixel 6', 'Pixel 7', 'Pixel 8', 'Pixel 9',
+            'ONEPLUS A6000', 'ONEPLUS GM1913', 'ONEPLUS KB2000',
+            'LM-G900', 'LM-V600', 'LM-Q730',
+            'M2012K11AG', 'M2101K6G', 'M2103K19G'
+        ]
+        
+        const selectedVersion = androidVersions[Math.floor(Math.random() * androidVersions.length)]
+        const selectedModel = deviceModels[Math.floor(Math.random() * deviceModels.length)]
+        
+        return `${selectedVersion}; ${selectedModel}`
+    } else {
+        // 修复桌面端系统组件顺序：应该是 "Windows NT 10.0; Win64; x64"
+        return 'Windows NT 10.0; Win64; x64'
     }
-
-    return `${uaPlatform}; ${osId}`
 }
 
 export async function getAppComponents(isMobile: boolean) {

@@ -47,7 +47,27 @@ class Browser {
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-gpu',
-                '--disable-features=VizDisplayCompositor'
+                '--disable-features=VizDisplayCompositor',
+                // 防崩溃和内存优化参数
+                '--disable-background-media-suspend',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--disable-plugins',
+                '--disable-extensions',
+                '--disable-default-apps',
+                '--disable-client-side-phishing-detection',
+                '--disable-sync',
+                '--disable-background-networking',
+                '--no-default-browser-check',
+                '--no-service-autorun',
+                '--no-pings',
+                '--memory-pressure-off',
+                '--max_old_space_size=2048',
+                '--enable-low-end-device-mode',
+                '--single-process'
             ]
         })
 
