@@ -47,16 +47,37 @@ export default class BrowserUtil {
             await this.bot.utils.wait(1000)
 
             const browser = page.context()
+            
+            if (!browser) {
+                throw new Error('Browser context is null or undefined')
+            }
+            
             const pages = browser.pages()
+            
+            if (!pages || pages.length === 0) {
+                throw new Error('No pages found in browser context')
+            }
+            
             const newTab = pages[pages.length - 1]
 
             if (newTab) {
+                if (newTab.isClosed()) {
+                    throw new Error('Latest tab is already closed')
+                }
+                
+                try {
+                    await newTab.evaluate(() => true, { timeout: 2000 })
+                } catch (evalError) {
+                    throw new Error('Latest tab is not responsive')
+                }
+                
                 return newTab
             }
 
-            throw this.bot.log(this.bot.isMobile, 'GET-NEW-TAB', 'Unable to get latest tab', 'error')
+            throw new Error('Unable to get latest tab')
         } catch (error) {
-            throw this.bot.log(this.bot.isMobile, 'GET-NEW-TAB', 'An error occurred:' + error, 'error')
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw this.bot.log(this.bot.isMobile, 'GET-NEW-TAB', `An error occurred: ${errorMessage}`, 'error')
         }
     }
 

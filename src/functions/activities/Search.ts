@@ -648,9 +648,42 @@ export class Search extends Workers {
 
                 await this.bot.utils.wait(500)
 
+                // 确保在正确的搜索页面
+                const currentUrl = searchPage.url()
+                if (!currentUrl.includes('bing.com')) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Not on Bing page, navigating to Bing...`, 'warn')
+                    await searchPage.goto('https://bing.com', { waitUntil: 'domcontentloaded', timeout: 30000 })
+                    await this.bot.utils.wait(2000)
+                }
+
                 const searchBar = '#sb_form_q'
-                await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 30000 })
                 
+                // 等待搜索框出现，增加重试机制
+                let searchBarFound = false
+                for (let waitAttempt = 0; waitAttempt < 3; waitAttempt++) {
+                    try {
+                        await searchPage.waitForSelector(searchBar, { state: 'visible', timeout: 30000 })
+                        searchBarFound = true
+                        break
+                    } catch (waitError) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search bar not found, attempt ${waitAttempt + 1}/3`, 'warn')
+                        
+                        // 尝试刷新页面
+                        if (waitAttempt < 2) {
+                            try {
+                                await searchPage.reload({ waitUntil: 'domcontentloaded', timeout: 15000 })
+                                await this.bot.utils.wait(3000)
+                            } catch (reloadError) {
+                                this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Page reload failed: ${reloadError}`, 'warn')
+                            }
+                        }
+                    }
+                }
+                
+                if (!searchBarFound) {
+                    throw new Error('Search bar not found after 3 attempts')
+                }
+
                 // 添加焦点检查和重试机制
                 let clickRetries = 0
                 while (clickRetries < 5) {

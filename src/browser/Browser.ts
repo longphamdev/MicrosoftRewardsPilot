@@ -65,9 +65,7 @@ class Browser {
                 '--no-service-autorun',
                 '--no-pings',
                 '--memory-pressure-off',
-                '--max_old_space_size=2048',
-                '--enable-low-end-device-mode',
-                '--single-process'
+                '--max_old_space_size=4096',
             ]
         })
 

@@ -221,11 +221,38 @@ export class Login {
                 // 如果在移动端，可能需要特殊处理
                 if (this.bot.isMobile) {
                     this.bot.log(this.bot.isMobile, 'LOGIN', 'Mobile 2FA might require manual intervention or OAuth token', 'warn')
+                    
+                    // 尝试检测并处理移动端特有的2FA页面
+                    const mobile2FAHandled = await this.handleMobile2FAPage(page)
+                    if (mobile2FAHandled) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Mobile 2FA handled successfully')
+                        return
+                    }
+                    
                     throw new Error('Mobile 2FA authentication method not supported - OAuth token may be required')
                 }
             }
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'LOGIN', `2FA handling failed: ${error}`, 'error')
+            throw error
+        }
+    }
+
+    /**
+     * 处理移动端OAuth流程中的2FA验证
+     */
+    private async handleMobileOAuth2FA(page: Page): Promise<void> {
+        try {
+            this.bot.log(this.bot.isMobile, 'LOGIN-OAUTH-2FA', 'Attempting to handle mobile OAuth 2FA')
+            
+            // 使用统一的移动端2FA处理方法
+            const handled = await this.handleMobile2FAPage(page)
+            if (!handled) {
+                throw new Error('Mobile OAuth 2FA requires manual intervention')
+            }
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN-OAUTH-2FA', `Mobile OAuth 2FA handling failed: ${error}`, 'warn')
             throw error
         }
     }
@@ -365,15 +392,26 @@ export class Login {
 
         this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Waiting for authorization...')
         
-        // 添加超时机制 - 最多等待30秒
+        // 增加超时时间到2分钟，给用户更多时间处理2FA
         const startTime = Date.now()
-        const timeout = 30000 // 30 seconds
+        const timeout = 120000 // 2 minutes (从30秒增加到2分钟)
         
         // eslint-disable-next-line no-constant-condition
         while (true) {
             // 检查是否超时
             if (Date.now() - startTime > timeout) {
-                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'OAuth authorization timeout after 30 seconds', 'warn')
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'OAuth authorization timeout after 2 minutes', 'warn')
+                
+                // 检查当前页面状态，提供更多信息
+                const currentPageUrl = page.url()
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', `Current page: ${currentPageUrl}`)
+                
+                // 检查是否在2FA页面
+                if (currentPageUrl.includes('passkey') || currentPageUrl.includes('interrupt') || currentPageUrl.includes('proofs')) {
+                    this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Detected 2FA page - manual intervention required', 'warn')
+                    throw new Error('OAuth authorization timeout - 2FA verification required')
+                }
+                
                 throw new Error('OAuth authorization timeout - user interaction required')
             }
             
@@ -382,6 +420,17 @@ export class Login {
             if (currentUrl.hostname === 'login.live.com' && currentUrl.pathname === '/oauth20_desktop.srf') {
                 code = currentUrl.searchParams.get('code')!
                 break
+            }
+
+            // 检查是否需要2FA验证
+            if (currentUrl.href.includes('passkey') || currentUrl.href.includes('interrupt')) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-APP', 'Detected 2FA requirement during OAuth flow')
+                // 尝试处理2FA
+                try {
+                    await this.handleMobileOAuth2FA(page)
+                } catch (twoFAError) {
+                    this.bot.log(this.bot.isMobile, 'LOGIN-APP', `2FA handling failed: ${twoFAError}`, 'warn')
+                }
             }
 
             await this.bot.utils.wait(2000) // 减少等待间隔从5秒到2秒，提高响应速度
@@ -495,6 +544,91 @@ export class Login {
         const isLocked = await page.waitForSelector('#serviceAbuseLandingTitle', { state: 'visible', timeout: 1000 }).then(() => true).catch(() => false)
         if (isLocked) {
             throw this.bot.log(this.bot.isMobile, 'CHECK-LOCKED', 'This account has been locked! Remove the account from "accounts.json" and restart!', 'error')
+        }
+    }
+
+    private async handleMobile2FAPage(page: Page): Promise<boolean> {
+        try {
+            const currentUrl = page.url()
+            this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Handling mobile 2FA page: ${currentUrl}`)
+            
+            // 检查是否是passkey页面
+            if (currentUrl.includes('passkey')) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Detected passkey authentication page')
+                
+                // 查找跳过按钮
+                const skipButtons = [
+                    'button[data-testid="secondaryButton"]',
+                    'a:has-text("Use a different method")',
+                    'button:has-text("Skip")',
+                    'a:has-text("Skip")',
+                    '[data-testid="alternativeVerificationMethodLink"]'
+                ]
+                
+                for (const selector of skipButtons) {
+                    const button = await page.waitForSelector(selector, { timeout: 2000 }).catch(() => null)
+                    if (button) {
+                        await button.click()
+                        this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Clicked skip button: ${selector}`)
+                        await this.bot.utils.wait(2000)
+                        return true
+                    }
+                }
+            }
+            
+            // 检查是否有SMS验证输入框
+            const smsInput = await page.waitForSelector('input[name="otc"]', { state: 'visible', timeout: 3000 }).catch(() => null)
+            if (smsInput) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'SMS verification detected - requires manual input', 'warn')
+                return false // 需要手动处理
+            }
+            
+            // 检查是否有其他验证方法选项
+            const otherMethodsButton = await page.waitForSelector('button:has-text("Use a different method"), a:has-text("Use a different method")', { timeout: 3000 }).catch(() => null)
+            if (otherMethodsButton) {
+                await otherMethodsButton.click()
+                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Clicked "Use a different method"')
+                await this.bot.utils.wait(2000)
+                
+                // 查找密码验证选项
+                const passwordOption = await page.waitForSelector('span:has-text("Password"), div:has-text("Password")', { timeout: 3000 }).catch(() => null)
+                if (passwordOption) {
+                    await passwordOption.click()
+                    this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Selected password verification option')
+                    await this.bot.utils.wait(2000)
+                    return true
+                }
+            }
+            
+            // 检查是否已经可以继续（有时页面会自动跳过）
+            const isRewardsPage = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 2000 }).catch(() => null)
+            if (isRewardsPage) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Already on rewards page - 2FA passed')
+                return true
+            }
+            
+            // 检查是否有继续按钮
+            const continueButtons = [
+                'button[type="submit"]',
+                'button:has-text("Continue")',
+                'button:has-text("Next")',
+                'input[type="submit"]'
+            ]
+            
+            for (const selector of continueButtons) {
+                const button = await page.waitForSelector(selector, { timeout: 2000 }).catch(() => null)
+                if (button && await button.isVisible()) {
+                    await button.click()
+                    this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Clicked continue button: ${selector}`)
+                    await this.bot.utils.wait(2000)
+                    return true
+                }
+            }
+            
+            return false
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Mobile 2FA handling failed: ${error}`, 'warn')
+            return false
         }
     }
 }
