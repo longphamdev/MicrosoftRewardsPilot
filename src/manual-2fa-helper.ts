@@ -17,11 +17,6 @@ const rl = readline.createInterface({
     output: process.stdout
 })
 
-interface Account {
-    email: string
-    password: string
-}
-
 // 多语言支持
 type Language = 'zh' | 'en'
 
@@ -246,7 +241,6 @@ const translations: Record<Language, LanguageStrings> = {
 }
 
 class Manual2FAHelper {
-    private accounts: Account[] = []
     private language: Language = 'zh'
     private strings: LanguageStrings
 
