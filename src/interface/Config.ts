@@ -34,6 +34,7 @@ export interface ConfigSearchSettings {
     multiLanguage?: ConfigMultiLanguage;
     autoTimezone?: ConfigAutoTimezone;
     humanBehavior?: ConfigHumanBehavior;
+    antiDetection?: ConfigAntiDetection;
     chinaRegionAdaptation?: ConfigChinaRegion;
 }
 
@@ -57,6 +58,8 @@ export interface ConfigHumanBehavior {
     randomScrollEnabled: boolean;
     clickRandomEnabled: boolean;
     timeBasedDelayEnabled: boolean;
+    adaptiveDelayEnabled?: boolean;
+    cautionModeEnabled?: boolean;
 }
 
 export interface ConfigSearchDelay {
@@ -89,4 +92,11 @@ export interface ConfigChinaRegion {
     useBaiduTrends: boolean;
     useWeiboTrends: boolean;
     fallbackToLocalQueries: boolean;
+}
+
+export interface ConfigAntiDetection {
+    dynamicDelayMultiplier: number;
+    progressiveBackoff: boolean;
+    maxConsecutiveFailures: number;
+    cooldownPeriod: string;
 }
