@@ -84,24 +84,58 @@ export async function getEdgeVersions(isMobile: boolean) {
 
 export function getSystemComponents(mobile: boolean): string {
     if (mobile) {
-        // 更多样化的 Android 版本和设备信息
-        const androidVersions = [
-            'Android 12', 'Android 13', 'Android 14', 'Android 15'
-        ]
-        const deviceModels = [
-            'SM-G991B', 'SM-G998B', 'SM-S918B', 'SM-A525F', 'SM-A736B',
-            'Pixel 6', 'Pixel 7', 'Pixel 8', 'Pixel 9',
-            'ONEPLUS A6000', 'ONEPLUS GM1913', 'ONEPLUS KB2000',
-            'LM-G900', 'LM-V600', 'LM-Q730',
-            'M2012K11AG', 'M2101K6G', 'M2103K19G'
+        // 更真实的Android版本分布（基于实际市场占有率）
+        const androidDistribution = [
+            { version: 'Android 12', weight: 15 },
+            { version: 'Android 13', weight: 30 },
+            { version: 'Android 14', weight: 40 },
+            { version: 'Android 15', weight: 15 }
         ]
         
-        const selectedVersion = androidVersions[Math.floor(Math.random() * androidVersions.length)]
+        // 更全面的设备型号（包含主流品牌）
+        const deviceModels = [
+            // Samsung Galaxy系列
+            'SM-G991B', 'SM-G998B', 'SM-S918B', 'SM-S928B', 'SM-A525F', 'SM-A736B', 'SM-A546B',
+            // Google Pixel系列
+            'Pixel 6', 'Pixel 6 Pro', 'Pixel 7', 'Pixel 7 Pro', 'Pixel 8', 'Pixel 8 Pro', 'Pixel 9',
+            // OnePlus系列
+            'ONEPLUS A6000', 'ONEPLUS GM1913', 'ONEPLUS KB2000', 'ONEPLUS PJZ110',
+            // LG系列
+            'LM-G900', 'LM-V600', 'LM-Q730', 'LM-G850',
+            // Xiaomi系列
+            'M2012K11AG', 'M2101K6G', 'M2103K19G', 'M2007J20CG', 'M2211K2C',
+            // Huawei系列
+            'ELS-NX9', 'LYA-L29', 'VOG-L29', 'ANA-NX9',
+            // Oppo系列
+            'CPH2025', 'CPH2207', 'CPH2413', 'CPH2239'
+        ]
+        
+        // 权重随机选择Android版本
+        const totalWeight = androidDistribution.reduce((sum, item) => sum + item.weight, 0)
+        let randomWeight = Math.random() * totalWeight
+        let selectedVersion = 'Android 13'
+        
+        for (const item of androidDistribution) {
+            randomWeight -= item.weight
+            if (randomWeight <= 0) {
+                selectedVersion = item.version
+                break
+            }
+        }
+        
         const selectedModel = deviceModels[Math.floor(Math.random() * deviceModels.length)]
         
-        return `${selectedVersion}; ${selectedModel}`
+        // 添加额外的设备特征
+        const additionalSpecs = [
+            '', // 无额外规格
+            '; wv', // WebView标识
+            'Linux; U', // 旧版格式
+        ]
+        const selectedSpec = additionalSpecs[Math.floor(Math.random() * additionalSpecs.length)]
+        
+        return selectedSpec ? `${selectedVersion}; ${selectedSpec}; ${selectedModel}` : `${selectedVersion}; ${selectedModel}`
     } else {
-        // 修复桌面端系统组件顺序：应该是 "Windows NT 10.0; Win64; x64"
+        // 保持桌面端简洁
         return 'Windows NT 10.0; Win64; x64'
     }
 }

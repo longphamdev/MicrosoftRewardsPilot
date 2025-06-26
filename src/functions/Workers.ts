@@ -124,7 +124,7 @@ export class Workers {
             try {
                 // 更安全地获取最新标签页
                 try {
-                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                 } catch (tabError) {
                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab, skipping activity "${activity.title}": ${tabError}`, 'warn')
                     
@@ -151,7 +151,7 @@ export class Workers {
                     await activityPage.close().catch(() => {})
 
                     try {
-                        activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                     } catch (tabError) {
                         // 如果获取失败，使用主页
                         activityPage = this.bot.homePage
@@ -243,7 +243,7 @@ export class Workers {
                                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "Poll" title: "${activity.title}"`)
                                     await activityPage.click(selector, { timeout: 10000 })
                                     try {
-                                        activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                                     } catch (tabError) {
                                         this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                                     }
@@ -252,7 +252,7 @@ export class Workers {
                                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "ABC" title: "${activity.title}"`)
                                     await activityPage.click(selector, { timeout: 10000 })
                                     try {
-                                        activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                                     } catch (tabError) {
                                         this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                                     }
@@ -265,7 +265,7 @@ export class Workers {
                                 this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "ThisOrThat" title: "${activity.title}"`)
                                 await activityPage.click(selector, { timeout: 10000 })
                                 try {
-                                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                                activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                                 } catch (tabError) {
                                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                                 }
@@ -277,7 +277,7 @@ export class Workers {
                                 this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "Quiz" title: "${activity.title}"`)
                                 await activityPage.click(selector, { timeout: 10000 })
                                 try {
-                                    activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                                activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                                 } catch (tabError) {
                                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                                 }
@@ -293,7 +293,7 @@ export class Workers {
                             this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "SearchOnBing" title: "${activity.title}"`)
                             await activityPage.click(selector, { timeout: 10000 })
                             try {
-                                activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                            activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                             } catch (tabError) {
                                 this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                             }
@@ -303,7 +303,7 @@ export class Workers {
                             this.bot.log(this.bot.isMobile, 'ACTIVITY', `Found activity type: "UrlReward" title: "${activity.title}"`)
                             await activityPage.click(selector, { timeout: 10000 })
                             try {
-                                activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
+                            activityPage = await this.bot.browser.utils.getLatestTab(activityPage)
                             } catch (tabError) {
                                 this.bot.log(this.bot.isMobile, 'ACTIVITY', `Failed to get latest tab after click: ${tabError}`, 'warn')
                             }

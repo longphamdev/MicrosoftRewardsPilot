@@ -73,7 +73,57 @@ class Browser {
 
         const fingerprint = sessionData.fingerprint ? sessionData.fingerprint : await this.generateFingerprint()
 
-        const context = await newInjectedContext(browser as any, { fingerprint: fingerprint })
+        // 创建浏览器上下文，为移动端添加完整配置
+        let contextOptions: any = { fingerprint: fingerprint }
+
+        // 关键修复：为移动端添加完整的移动设备配置
+        if (this.bot.isMobile) {
+            contextOptions = {
+                ...contextOptions,
+                viewport: { 
+                    width: 412, 
+                    height: 915 
+                }, // 标准移动端屏幕尺寸
+                deviceScaleFactor: 3, // 高分辨率移动设备
+                isMobile: true, // 关键：标识为移动设备
+                hasTouch: true, // 关键：启用触摸支持
+                userAgent: fingerprint.fingerprint.navigator.userAgent, // 确保使用移动端UA
+                locale: 'ja-JP', // 根据地区设置
+                timezoneId: 'Asia/Tokyo', // 时区设置
+                permissions: ['geolocation'], // 移动端权限
+                geolocation: { 
+                    latitude: 35.6762, 
+                    longitude: 139.6503 
+                }, // 东京坐标
+                extraHTTPHeaders: {
+                    // 移动端特有的HTTP头部
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'sec-ch-ua-mobile': '?1', // 关键：标识为移动设备
+                    'sec-ch-ua-platform': '"Android"', // 平台标识
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            }
+            
+            this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', 'Configuring browser with full mobile device simulation')
+            this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', `Viewport: 412x915, Touch: enabled, Mobile: true`)
+        } else {
+            // 桌面端配置
+            contextOptions = {
+                ...contextOptions,
+                viewport: { 
+                    width: 1920, 
+                    height: 1080 
+                },
+                locale: 'ja-JP',
+                timezoneId: 'Asia/Tokyo'
+            }
+        }
+
+        const context = await newInjectedContext(browser as any, contextOptions)
 
         // Set timeout to preferred amount
         context.setDefaultTimeout(this.bot.utils.stringToMs(this.bot.config?.globalTimeout ?? 30000))
@@ -85,6 +135,11 @@ class Browser {
         }
 
         this.bot.log(this.bot.isMobile, 'BROWSER', `Created browser with User-Agent: "${fingerprint.fingerprint.navigator.userAgent}"`)
+        
+        // 移动端额外验证日志
+        if (this.bot.isMobile) {
+            this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', 'Mobile browser features: Touch=✓, Mobile=✓, Viewport=412x915, Platform=Android')
+        }
 
         return context as BrowserContext
     }

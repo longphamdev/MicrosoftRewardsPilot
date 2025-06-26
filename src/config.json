@@ -29,10 +29,10 @@
         "scrollRandomResults": true,
         "clickRandomResults": true,
         "searchDelay": {
-            "min": "45s",
-            "max": "120s"
+            "min": "60s",
+            "max": "150s"
         },
-        "retryMobileSearchAmount": 0,
+        "retryMobileSearchAmount": 2,
         "multiLanguage": {
             "enabled": true,
             "autoDetectLocation": true,

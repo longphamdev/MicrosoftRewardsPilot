@@ -30,6 +30,20 @@ export class Search extends Workers {
         let searchCounters: Counters = await this.bot.browser.func.getSearchPoints()
         let missingPoints = this.calculatePoints(searchCounters)
 
+        // 记录初始搜索状态
+        if (this.bot.isMobile) {
+            const mobileSearchData = searchCounters.mobileSearch?.[0]
+            if (mobileSearchData) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-INITIAL-STATUS', 
+                    `Mobile search initial status: ${mobileSearchData.pointProgress}/${mobileSearchData.pointProgressMax} points`)
+            }
+        } else {
+            const pcSearchData = searchCounters.pcSearch?.[0]
+            const edgeSearchData = searchCounters.pcSearch?.[1]
+            this.bot.log(this.bot.isMobile, 'SEARCH-INITIAL-STATUS', 
+                `Desktop search initial status: PC(${pcSearchData?.pointProgress || 0}/${pcSearchData?.pointProgressMax || 0}), Edge(${edgeSearchData?.pointProgress || 0}/${edgeSearchData?.pointProgressMax || 0})`)
+        }
+
         if (missingPoints === 0) {
             this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Bing searches have already been completed')
             return
@@ -69,6 +83,7 @@ export class Search extends Workers {
         const totalQueries = queries.length
         let completedSearches = 0
         let earnedPoints = 0
+        let lastPointsCheck = missingPoints
         
         this.bot.log(this.bot.isMobile, 'SEARCH-PROGRESS', `Starting ${this.bot.isMobile ? 'mobile' : 'desktop'} search: ${missingPoints} points needed, ${totalQueries} queries available`)
         
@@ -114,6 +129,31 @@ export class Search extends Workers {
             if (pointsGained > 0) {
                 earnedPoints += pointsGained
                 this.bot.log(this.bot.isMobile, 'SEARCH-PROGRESS', `Earned ${pointsGained} points (Total: ${earnedPoints} points)`)
+                
+                // 记录详细的积分变化
+                if (this.bot.isMobile) {
+                    const mobileSearchData = searchCounters.mobileSearch?.[0]
+                    if (mobileSearchData) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-POINTS-DETAIL', 
+                            `Mobile search progress: ${mobileSearchData.pointProgress}/${mobileSearchData.pointProgressMax} points`)
+                    }
+                } else {
+                    // 桌面端详细积分跟踪
+                    const pcSearchData = searchCounters.pcSearch?.[0]
+                    const edgeSearchData = searchCounters.pcSearch?.[1]
+                    
+                    if (pcSearchData) {
+                        const pcRemaining = pcSearchData.pointProgressMax - pcSearchData.pointProgress
+                        this.bot.log(this.bot.isMobile, 'SEARCH-POINTS-DETAIL', 
+                            `PC search progress: ${pcSearchData.pointProgress}/${pcSearchData.pointProgressMax} points (${pcRemaining} remaining)`)
+                    }
+                    
+                    if (edgeSearchData) {
+                        const edgeRemaining = edgeSearchData.pointProgressMax - edgeSearchData.pointProgress
+                        this.bot.log(this.bot.isMobile, 'SEARCH-POINTS-DETAIL', 
+                            `Edge search progress: ${edgeSearchData.pointProgress}/${edgeSearchData.pointProgressMax} points (${edgeRemaining} remaining)`)
+                    }
+                }
             }
 
             // If the new point amount is the same as before
@@ -121,6 +161,34 @@ export class Search extends Workers {
                 maxLoop++ // Add to max loop
                 if (maxLoop === 3) {
                     this.bot.log(this.bot.isMobile, 'SEARCH-WARNING', `No points gained for ${maxLoop} searches, may need to wait longer between searches`)
+                    
+                    // 强制检查积分状态
+                    this.bot.log(this.bot.isMobile, 'SEARCH-FORCE-CHECK', 'Force checking current search points status...')
+                    try {
+                        const forceCheckCounters = await this.bot.browser.func.getSearchPoints()
+                        const forceCheckMissingPoints = this.calculatePoints(forceCheckCounters)
+                        
+                        if (forceCheckMissingPoints !== missingPoints) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-FORCE-CHECK', `Points updated after force check: ${missingPoints} -> ${forceCheckMissingPoints}`)
+                            missingPoints = forceCheckMissingPoints
+                            maxLoop = 0 // 重置计数器
+                            continue
+                        }
+                    } catch (checkError) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-FORCE-CHECK', `Force check failed: ${checkError}`, 'warn')
+                    }
+                }
+                
+                if (maxLoop === 5) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-WARNING', `No points gained for ${maxLoop} searches, adding extra delay`)
+                    await this.bot.utils.wait(30000) // 额外等待30秒
+                }
+                
+                // 桌面端特殊处理：延长重试次数
+                if (!this.bot.isMobile && maxLoop === 8) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-DESKTOP-EXTENDED', 'Desktop search needs more time, extending retry limit', 'warn')
+                    // 桌面端获取完整积分通常需要更多搜索，给予更长的重试时间
+                    await this.bot.utils.wait(60000) // 等待1分钟
                 }
             } else { // There has been a change in points
                 maxLoop = 0 // Reset the loop
@@ -131,6 +199,17 @@ export class Search extends Workers {
 
             if (missingPoints === 0) {
                 this.bot.log(this.bot.isMobile, 'SEARCH-COMPLETE', `✅ Search completed! Total earned: ${earnedPoints} points`)
+                
+                // 最终验证积分状态
+                await this.bot.utils.wait(2000)
+                const finalCounters = await this.bot.browser.func.getSearchPoints()
+                const finalMissingPoints = this.calculatePoints(finalCounters)
+                
+                if (finalMissingPoints === 0) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-FINAL-VERIFY', '✅ Final verification: All search points earned successfully!')
+                } else {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-FINAL-VERIFY', `⚠️ Final verification: ${finalMissingPoints} points still missing after completion`, 'warn')
+                }
                 break
             }
 
@@ -177,11 +256,67 @@ export class Search extends Workers {
                 continue // 继续搜索而不是break
             }
 
-            // If we didn't gain points for 10 iterations, assume it's stuck
-            if (maxLoop > 10) {
-                this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Search didn\'t gain point for 10 iterations aborting searches', 'warn')
+            // 桌面端和移动端使用不同的maxLoop限制
+            const maxLoopLimit = this.bot.isMobile ? 10 : 15 // 桌面端允许更多重试
+            
+            // If we didn't gain points for multiple iterations, assume it's stuck
+            if (maxLoop > maxLoopLimit) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search didn't gain point for ${maxLoopLimit} iterations aborting searches`, 'warn')
+                
+                // 在放弃前做最后一次积分检查
+                this.bot.log(this.bot.isMobile, 'SEARCH-FINAL-CHECK', 'Performing final points check before giving up...')
+                try {
+                    await this.bot.utils.wait(5000) // 等待5秒让系统更新
+                    const finalCheckCounters = await this.bot.browser.func.getSearchPoints()
+                    const finalCheckMissingPoints = this.calculatePoints(finalCheckCounters)
+                    
+                    if (finalCheckMissingPoints < missingPoints) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-FINAL-CHECK', `Points updated in final check: ${missingPoints} -> ${finalCheckMissingPoints}`)
+                        missingPoints = finalCheckMissingPoints
+                        if (missingPoints === 0) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-COMPLETE', `✅ Search completed after final check! Total earned: ${earnedPoints + (lastPointsCheck - missingPoints)} points`)
+                            break
+                        }
+                    }
+                } catch (finalCheckError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-FINAL-CHECK', `Final check failed: ${finalCheckError}`, 'warn')
+                }
+                
                 maxLoop = 0 // Reset to 0 so we can retry with related searches below
                 break
+            }
+
+            // 智能延迟计算
+            const smartDelay = await this.getSmartSearchDelay()
+            await this.bot.utils.wait(smartDelay)
+
+            // 移动端特殊检测：检查是否需要User-Agent刷新
+            if (this.bot.isMobile && maxLoop === 3) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-MOBILE-CHECK', 'Mobile search stalled, checking device compatibility...')
+                
+                // 检查当前页面的移动端特征
+                try {
+                    const mobileFeatures = await page.evaluate(() => {
+                        return {
+                            userAgent: navigator.userAgent,
+                            isMobile: /Mobile|Android/i.test(navigator.userAgent),
+                            touchPoints: navigator.maxTouchPoints,
+                            screenWidth: window.screen.width,
+                            innerWidth: window.innerWidth,
+                            devicePixelRatio: window.devicePixelRatio
+                        }
+                    })
+                    
+                    this.bot.log(this.bot.isMobile, 'SEARCH-MOBILE-FEATURES', 
+                        `Mobile features: UA=${mobileFeatures.isMobile}, Touch=${mobileFeatures.touchPoints}, Screen=${mobileFeatures.screenWidth}x${mobileFeatures.innerWidth}, DPR=${mobileFeatures.devicePixelRatio}`)
+                        
+                    // 如果移动端特征不完整，可能需要刷新User-Agent
+                    if (!mobileFeatures.isMobile || mobileFeatures.touchPoints === 0 || mobileFeatures.screenWidth > 500) {
+                        this.bot.log(this.bot.isMobile, 'SEARCH-MOBILE-UA-REFRESH', 'Mobile features incomplete, will refresh User-Agent on next retry', 'warn')
+                    }
+                } catch (checkError) {
+                    this.bot.log(this.bot.isMobile, 'SEARCH-MOBILE-CHECK', `Mobile check failed: ${checkError}`, 'warn')
+                }
             }
         }
 
@@ -189,8 +324,19 @@ export class Search extends Workers {
         if (missingPoints > 0) {
             this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Search completed but we're missing ${missingPoints} points, generating extra searches`)
 
+            // 为桌面端生成更多的额外搜索
+            const maxExtraSearches = this.bot.isMobile ? 20 : 50 // 桌面端需要更多搜索
+            let extraSearchCount = 0
+            
             let i = 0
-            while (missingPoints > 0) {
+            while (missingPoints > 0 && extraSearchCount < maxExtraSearches) {
+                if (i >= allSearchQueries.length) {
+                    // 如果用完了所有预定义查询，生成新的
+                    this.bot.log(this.bot.isMobile, 'SEARCH-GENERATE-MORE', 'Generating additional search queries...')
+                    const additionalQueries = await this.generateAdditionalQueries(data)
+                    allSearchQueries.push(...additionalQueries)
+                }
+                
                 const query = allSearchQueries[i++] as any
 
                 // Get related search terms to the search queries
@@ -198,10 +344,13 @@ export class Search extends Workers {
                 if (relatedTerms.length > 3) {
                     // Search for the first 2 related terms
                     for (const term of relatedTerms.slice(1, 3)) {
-                        this.bot.log(this.bot.isMobile, 'SEARCH-BING-EXTRA', `${missingPoints} Points Remaining | Query: ${term}`)
+                        if (extraSearchCount >= maxExtraSearches) break
+                        
+                        this.bot.log(this.bot.isMobile, 'SEARCH-BING-EXTRA', `${missingPoints} Points Remaining | Extra Query ${extraSearchCount + 1}/${maxExtraSearches}: ${term}`)
 
                         searchCounters = await this.bingSearch(page, term)
                         const newMissingPoints = this.calculatePoints(searchCounters)
+                        extraSearchCount++
 
                         // If the new point amount is the same as before
                         if (newMissingPoints == missingPoints) {
@@ -214,6 +363,7 @@ export class Search extends Workers {
 
                         // If we satisfied the searches
                         if (missingPoints === 0) {
+                            this.bot.log(this.bot.isMobile, 'SEARCH-EXTRA-COMPLETE', `✅ All points earned with extra searches! Completed ${extraSearchCount} extra searches.`)
                             break
                         }
 
@@ -222,6 +372,30 @@ export class Search extends Workers {
                             this.bot.log(this.bot.isMobile, 'SEARCH-BING-EXTRA', 'Search didn\'t gain point for 5 iterations aborting searches', 'warn')
                             return
                         }
+                    }
+                }
+                
+                if (missingPoints === 0) break
+            }
+            
+            if (missingPoints > 0) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-INCOMPLETE', `Search ended with ${missingPoints} points still needed after ${extraSearchCount} extra searches`, 'warn')
+                // 显示详细的剩余积分信息
+                if (!this.bot.isMobile) {
+                    const finalCounters = await this.bot.browser.func.getSearchPoints()
+                    const pcSearchData = finalCounters.pcSearch?.[0]
+                    const edgeSearchData = finalCounters.pcSearch?.[1]
+                    
+                    if (pcSearchData) {
+                        const pcRemaining = pcSearchData.pointProgressMax - pcSearchData.pointProgress
+                        this.bot.log(this.bot.isMobile, 'SEARCH-INCOMPLETE-DETAIL', 
+                            `PC search final: ${pcSearchData.pointProgress}/${pcSearchData.pointProgressMax} (${pcRemaining} remaining)`)
+                    }
+                    
+                    if (edgeSearchData) {
+                        const edgeRemaining = edgeSearchData.pointProgressMax - edgeSearchData.pointProgress
+                        this.bot.log(this.bot.isMobile, 'SEARCH-INCOMPLETE-DETAIL', 
+                            `Edge search final: ${edgeSearchData.pointProgress}/${edgeSearchData.pointProgressMax} (${edgeRemaining} remaining)`)
                     }
                 }
             }
@@ -634,6 +808,63 @@ export class Search extends Workers {
                 // 在操作前先等待页面稳定
                 await this.bot.utils.wait(1000)
 
+                // 移动端关键修复：验证和强化移动端特征
+                if (this.bot.isMobile) {
+                    try {
+                        // 验证移动端特征是否正确设置
+                        const mobileFeatures = await searchPage.evaluate(() => {
+                            return {
+                                isMobile: 'ontouchstart' in window,
+                                hasTouch: navigator.maxTouchPoints > 0,
+                                userAgent: navigator.userAgent,
+                                viewport: { 
+                                    width: window.innerWidth, 
+                                    height: window.innerHeight 
+                                },
+                                platform: navigator.platform,
+                                deviceMemory: (navigator as any).deviceMemory || 'unknown'
+                            }
+                        })
+                        
+                        this.bot.log(this.bot.isMobile, 'MOBILE-VERIFY', 
+                            `Mobile features check: Touch=${mobileFeatures.hasTouch}, Viewport=${mobileFeatures.viewport.width}x${mobileFeatures.viewport.height}, Platform=${mobileFeatures.platform}`)
+                        
+                        // 如果检测到移动端特征不正确，尝试修复
+                        if (!mobileFeatures.hasTouch || mobileFeatures.viewport.width > 600) {
+                            this.bot.log(this.bot.isMobile, 'MOBILE-VERIFY', 'Mobile features not properly set, attempting to reinforce...', 'warn')
+                            
+                            // 强化移动端特征
+                            await searchPage.evaluate(() => {
+                                // 设置移动端特征
+                                Object.defineProperty(navigator, 'maxTouchPoints', {
+                                    writable: false,
+                                    value: 5
+                                })
+                                
+                                // 触发触摸事件支持
+                                if (!('ontouchstart' in window)) {
+                                    (window as any).ontouchstart = () => {}
+                                }
+                                
+                                // 确保移动端UA检测
+                                if (!navigator.userAgent.includes('Mobile')) {
+                                    this.bot.log(this.bot.isMobile, 'MOBILE-VERIFY', 'User-Agent missing Mobile identifier!', 'error')
+                                }
+                            })
+                        }
+                        
+                        // 设置移动端专用HTTP头部
+                        await searchPage.setExtraHTTPHeaders({
+                            'sec-ch-ua-mobile': '?1',
+                            'sec-ch-ua-platform': '"Android"',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'
+                        })
+                        
+                    } catch (verifyError) {
+                        this.bot.log(this.bot.isMobile, 'MOBILE-VERIFY', `Mobile verification failed: ${verifyError}`, 'warn')
+                    }
+                }
+
                 // 安全的页面滚动 - 避免使用可能崩溃的 evaluate
                 try {
                     await searchPage.keyboard.press('Home')
@@ -759,6 +990,33 @@ export class Search extends Workers {
                 }
 
                 await this.bot.browser.utils.reloadBadPage(resultPage)
+
+                // 移动端搜索后验证：检查是否在移动版Bing
+                if (this.bot.isMobile) {
+                    try {
+                        const isMobileBing = await resultPage.evaluate(() => {
+                            // 检查是否为移动版Bing的特征
+                            const body = document.body
+                            return {
+                                hasMobileClass: body ? body.classList.contains('mobile') || body.classList.contains('m') : false,
+                                viewport: body ? body.getAttribute('data-viewport') : null,
+                                width: window.innerWidth,
+                                userAgent: navigator.userAgent.includes('Mobile'),
+                                touchPoints: navigator.maxTouchPoints > 0
+                            }
+                        })
+                        
+                        if (!isMobileBing.userAgent || !isMobileBing.touchPoints) {
+                            this.bot.log(this.bot.isMobile, 'MOBILE-BING-CHECK', 
+                                `Warning: Mobile features not detected on result page. UA Mobile: ${isMobileBing.userAgent}, Touch: ${isMobileBing.touchPoints}`, 'warn')
+                        } else {
+                            this.bot.log(this.bot.isMobile, 'MOBILE-BING-CHECK', 
+                                `✓ Mobile Bing detected: Width=${isMobileBing.width}, Touch=${isMobileBing.touchPoints}`)
+                        }
+                    } catch (checkError) {
+                        this.bot.log(this.bot.isMobile, 'MOBILE-BING-CHECK', `Mobile Bing verification failed: ${checkError}`, 'warn')
+                    }
+                }
 
                 // 更安全的人类行为模拟
                 try {
@@ -1187,41 +1445,17 @@ export class Search extends Workers {
      */
     private handleSearchFailure(): void {
         this.consecutiveFailures++
-        
-        // 动态调整延迟倍数
-        const antiDetectionConfig = this.bot.config.searchSettings.antiDetection
-        if (antiDetectionConfig?.progressiveBackoff) {
-            const maxMultiplier = antiDetectionConfig.dynamicDelayMultiplier || 2.0
-            this.adaptiveDelayMultiplier = Math.min(
-                maxMultiplier,
-                1.0 + (this.consecutiveFailures * 0.2)
-            )
-        }
-        
-        this.bot.log(this.bot.isMobile, 'SEARCH-FAILURE-HANDLER', 
-            `Consecutive failures: ${this.consecutiveFailures}, Delay multiplier: ${this.adaptiveDelayMultiplier.toFixed(2)}`)
-        
-        // 如果连续失败次数过多，触发冷却期
-        const maxFailures = antiDetectionConfig?.maxConsecutiveFailures || 5
-        if (this.consecutiveFailures >= maxFailures) {
-            const cooldownMs = this.bot.utils.stringToMs(antiDetectionConfig?.cooldownPeriod || "5min")
-            this.bot.log(this.bot.isMobile, 'SEARCH-COOLDOWN', 
-                `Entering cooldown period: ${Math.round(cooldownMs/60000)} minutes`)
-        }
+        this.adaptiveDelayMultiplier = Math.min(2.0, this.adaptiveDelayMultiplier + 0.2)
     }
     
     /**
      * 处理搜索成功，重置自适应参数
      */
     private handleSearchSuccess(): void {
-        if (this.consecutiveFailures > 0) {
-            this.bot.log(this.bot.isMobile, 'SEARCH-SUCCESS-RECOVERY', 
-                `Recovered after ${this.consecutiveFailures} consecutive failures`)
-        }
-        
-        // 逐步恢复正常延迟
         this.consecutiveFailures = 0
-        this.adaptiveDelayMultiplier = Math.max(1.0, this.adaptiveDelayMultiplier * 0.9)
+        if (this.adaptiveDelayMultiplier > 1.0) {
+            this.adaptiveDelayMultiplier = Math.max(1.0, this.adaptiveDelayMultiplier - 0.1)
+        }
     }
 
     /**
@@ -1621,15 +1855,51 @@ export class Search extends Workers {
 
     private calculatePoints(counters: Counters) {
         const mobileData = counters.mobileSearch?.[0] // Mobile searches
-        const genericData = counters.pcSearch?.[0] // Normal searches
+        const genericData = counters.pcSearch?.[0] // Normal searches  
         const edgeData = counters.pcSearch?.[1] // Edge searches
 
-        const missingPoints = (this.bot.isMobile && mobileData)
-            ? mobileData.pointProgressMax - mobileData.pointProgress
-            : (edgeData ? edgeData.pointProgressMax - edgeData.pointProgress : 0)
-            + (genericData ? genericData.pointProgressMax - genericData.pointProgress : 0)
+        if (this.bot.isMobile && mobileData) {
+            // 移动端只计算移动搜索积分
+            return mobileData.pointProgressMax - mobileData.pointProgress
+        } else {
+            // 桌面端计算PC搜索 + Edge搜索
+            const genericMissing = genericData ? genericData.pointProgressMax - genericData.pointProgress : 0
+            const edgeMissing = edgeData ? edgeData.pointProgressMax - edgeData.pointProgress : 0
+            
+            // 记录详细的桌面端积分状态
+            if (genericData || edgeData) {
+                this.bot.log(this.bot.isMobile, 'SEARCH-POINTS-BREAKDOWN', 
+                    `Desktop breakdown: PC(${genericData?.pointProgress || 0}/${genericData?.pointProgressMax || 0}), Edge(${edgeData?.pointProgress || 0}/${edgeData?.pointProgressMax || 0})`)
+            }
+            
+            return genericMissing + edgeMissing
+        }
+    }
 
-        return missingPoints
+    /**
+     * 智能调整搜索延迟
+     */
+    private async getSmartSearchDelay(): Promise<number> {
+        const baseMin = this.bot.isMobile ? 60000 : 45000 // 移动端60s，桌面端45s
+        const baseMax = this.bot.isMobile ? 150000 : 120000 // 移动端150s，桌面端120s
+        
+        // 根据连续失败次数调整延迟
+        const failureMultiplier = Math.min(1 + (this.consecutiveFailures * 0.5), 3) // 最多3倍延迟
+        
+        // 根据自适应倍数调整
+        const adaptiveMultiplier = this.adaptiveDelayMultiplier
+        
+        const adjustedMin = baseMin * failureMultiplier * adaptiveMultiplier
+        const adjustedMax = baseMax * failureMultiplier * adaptiveMultiplier
+        
+        const delay = Math.floor(Math.random() * (adjustedMax - adjustedMin + 1)) + adjustedMin
+        
+        if (failureMultiplier > 1 || adaptiveMultiplier > 1) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-SMART-DELAY', 
+                `Smart delay: ${Math.round(delay/1000)}s (base: ${Math.round(baseMin/1000)}-${Math.round(baseMax/1000)}s, failure multiplier: ${failureMultiplier.toFixed(1)}, adaptive: ${adaptiveMultiplier.toFixed(1)})`)
+        }
+        
+        return delay
     }
 
     /**
@@ -1759,4 +2029,67 @@ export class Search extends Workers {
         }
     }
 
+    /**
+     * 生成额外的搜索查询（当预定义查询不足时）
+     */
+    private async generateAdditionalQueries(data: DashboardData): Promise<(GoogleSearch | string)[]> {
+        const additionalQueries: (GoogleSearch | string)[] = []
+        
+        try {
+            // 1. 基于时间的查询
+            const currentDate = new Date()
+            const currentYear = currentDate.getFullYear()
+            const currentMonth = currentDate.getMonth() + 1
+            const currentDay = currentDate.getDate()
+            
+            const timeBasedQueries = [
+                `${currentYear}年${currentMonth}月のニュース`,
+                `${currentYear}年の出来事`,
+                `今日は${currentMonth}月${currentDay}日`,
+                '最新のトレンド',
+                '今週のニュース',
+                '今月のイベント',
+                '最新技術',
+                '注目の話題'
+            ]
+            
+            additionalQueries.push(...timeBasedQueries)
+            
+            // 2. 随机生成的组合查询
+            const subjects = ['技術', '映画', '音楽', '料理', '旅行', '健康', '学習', 'ビジネス', 'スポーツ', 'ファッション']
+            const modifiers = ['最新', '人気', 'おすすめ', 'ランキング', 'レビュー', '比較', '方法', 'コツ']
+            
+            for (let i = 0; i < 10; i++) {
+                const subject = subjects[Math.floor(Math.random() * subjects.length)]
+                const modifier = modifiers[Math.floor(Math.random() * modifiers.length)]
+                additionalQueries.push(`${subject} ${modifier}`)
+            }
+            
+            // 3. 常见搜索模式
+            const commonPatterns = [
+                'どうやって',
+                'なぜ',
+                'いつ',
+                'どこで',
+                'だれが',
+                '何のため',
+                'いくら',
+                'どのくらい'
+            ]
+            
+            const topics = ['仕事', '勉強', '家族', '友達', 'お金', '時間', '健康', '幸せ']
+            
+            for (const pattern of commonPatterns) {
+                const topic = topics[Math.floor(Math.random() * topics.length)]
+                additionalQueries.push(`${pattern}${topic}`)
+            }
+            
+            this.bot.log(this.bot.isMobile, 'SEARCH-ADDITIONAL', `Generated ${additionalQueries.length} additional search queries`)
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'SEARCH-ADDITIONAL-ERROR', `Error generating additional queries: ${error}`, 'warn')
+        }
+        
+        return additionalQueries
+    }
 }
