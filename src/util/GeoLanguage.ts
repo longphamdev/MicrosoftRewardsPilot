@@ -9,6 +9,8 @@ export interface GeoLocation {
     language: string
     currency: string
     ip: string
+    latitude: number
+    longitude: number
 }
 
 export interface LanguageConfig {
@@ -90,7 +92,9 @@ export class GeoLanguageDetector {
                     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.countryCode || 'US'),
                     currency: data.currency || 'USD',
-                    ip: data.query || 'Unknown'
+                    ip: data.query || 'Unknown',
+                    latitude: data.lat || 0,
+                    longitude: data.lon || 0
                 }
             } else if (service.includes('ipapi.co')) {
                 return {
@@ -100,9 +104,13 @@ export class GeoLanguageDetector {
                     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.country_code || 'US'),
                     currency: data.currency || 'USD',
-                    ip: data.ip || 'Unknown'
+                    ip: data.ip || 'Unknown',
+                    latitude: data.latitude || 0,
+                    longitude: data.longitude || 0
                 }
             } else if (service.includes('ipinfo.io')) {
+                // ipinfo.io使用"loc"字段返回"lat,lng"格式
+                const coordinates = data.loc ? data.loc.split(',') : ['0', '0']
                 return {
                     country: data.country || 'US',
                     countryCode: data.country || 'US',
@@ -110,7 +118,9 @@ export class GeoLanguageDetector {
                     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.country || 'US'),
                     currency: 'USD', // ipinfo.io不提供货币信息
-                    ip: data.ip || 'Unknown'
+                    ip: data.ip || 'Unknown',
+                    latitude: parseFloat(coordinates[0]) || 0,
+                    longitude: parseFloat(coordinates[1]) || 0
                 }
             } else if (service.includes('ipgeolocation.io')) {
                 // 添加 ipgeolocation.io 解析
@@ -121,7 +131,9 @@ export class GeoLanguageDetector {
                     timezone: data.time_zone?.name || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.country_code2 || 'US'),
                     currency: data.currency?.code || 'USD',
-                    ip: data.ip || 'Unknown'
+                    ip: data.ip || 'Unknown',
+                    latitude: parseFloat(data.latitude) || 0,
+                    longitude: parseFloat(data.longitude) || 0
                 }
             } else if (service.includes('freegeoip.app')) {
                 // 添加 freegeoip.app 解析
@@ -132,7 +144,9 @@ export class GeoLanguageDetector {
                     timezone: data.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: this.getLanguageFromCountry(data.country_code || 'US'),
                     currency: 'USD', // freegeoip不提供货币信息
-                    ip: data.ip || 'Unknown'
+                    ip: data.ip || 'Unknown',
+                    latitude: parseFloat(data.latitude) || 0,
+                    longitude: parseFloat(data.longitude) || 0
                 }
             }
         } catch (error) {
@@ -147,20 +161,32 @@ export class GeoLanguageDetector {
     private static getLocationFromTimezone(): GeoLocation {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
         
-        // 常见时区到国家的映射
-        const timezoneMap: { [key: string]: { country: string, code: string, language: string } } = {
-            'Asia/Tokyo': { country: 'Japan', code: 'JP', language: 'ja' },
-            'Asia/Shanghai': { country: 'China', code: 'CN', language: 'zh-CN' },
-            'Asia/Seoul': { country: 'South Korea', code: 'KR', language: 'ko' },
-            'Europe/London': { country: 'United Kingdom', code: 'GB', language: 'en' },
-            'Europe/Paris': { country: 'France', code: 'FR', language: 'fr' },
-            'Europe/Berlin': { country: 'Germany', code: 'DE', language: 'de' },
-            'America/New_York': { country: 'United States', code: 'US', language: 'en' },
-            'America/Los_Angeles': { country: 'United States', code: 'US', language: 'en' },
-            'Australia/Sydney': { country: 'Australia', code: 'AU', language: 'en' }
+        // 常见时区到国家的映射（包含大概经纬度）
+        const timezoneMap: { [key: string]: { 
+            country: string, 
+            code: string, 
+            language: string,
+            latitude: number,
+            longitude: number
+        } } = {
+            'Asia/Tokyo': { country: 'Japan', code: 'JP', language: 'ja', latitude: 35.6762, longitude: 139.6503 },
+            'Asia/Shanghai': { country: 'China', code: 'CN', language: 'zh-CN', latitude: 31.2304, longitude: 121.4737 },
+            'Asia/Seoul': { country: 'South Korea', code: 'KR', language: 'ko', latitude: 37.5665, longitude: 126.9780 },
+            'Europe/London': { country: 'United Kingdom', code: 'GB', language: 'en', latitude: 51.5074, longitude: -0.1278 },
+            'Europe/Paris': { country: 'France', code: 'FR', language: 'fr', latitude: 48.8566, longitude: 2.3522 },
+            'Europe/Berlin': { country: 'Germany', code: 'DE', language: 'de', latitude: 52.5200, longitude: 13.4050 },
+            'America/New_York': { country: 'United States', code: 'US', language: 'en', latitude: 40.7128, longitude: -74.0060 },
+            'America/Los_Angeles': { country: 'United States', code: 'US', language: 'en', latitude: 34.0522, longitude: -118.2437 },
+            'Australia/Sydney': { country: 'Australia', code: 'AU', language: 'en', latitude: -33.8688, longitude: 151.2093 }
         }
 
-        const location = timezoneMap[timezone] || { country: 'United States', code: 'US', language: 'en' }
+        const location = timezoneMap[timezone] || { 
+            country: 'United States', 
+            code: 'US', 
+            language: 'en',
+            latitude: 40.7128,
+            longitude: -74.0060
+        }
         
         return {
             country: location.country,
@@ -169,7 +195,9 @@ export class GeoLanguageDetector {
             timezone,
             language: location.language,
             currency: 'USD',
-            ip: 'Unknown'
+            ip: 'Unknown',
+            latitude: location.latitude,
+            longitude: location.longitude
         }
     }
 
