@@ -2,6 +2,39 @@ import { GeoLanguageDetector } from './GeoLanguage'
 import { log } from './Logger'
 import { loadConfig } from './Load'
 
+// 定义自动时区配置接口
+interface AutoTimezoneConfig {
+    enabled: boolean
+    validateMatch: boolean
+    setOnStartup: boolean
+    logChanges: boolean
+}
+
+// 定义启动摘要接口
+interface StartupSummaryTimezone {
+    current: string
+    offset: string
+    name: string
+    isDST: boolean
+    matchesLocation: boolean
+    detectedTimezone: string
+}
+
+interface StartupSummaryGeolocation {
+    country: string
+    countryCode: string
+    city: string
+    language: string
+    languageName: string
+    ip: string
+}
+
+interface StartupSummary {
+    timezone: StartupSummaryTimezone
+    geolocation: StartupSummaryGeolocation
+    recommendations: string[]
+}
+
 export class StartupConfig {
     /**
      * 程序启动时的自动配置初始化
@@ -33,7 +66,7 @@ export class StartupConfig {
     /**
      * 初始化时区设置
      */
-    private static async initializeTimezone(autoTimezoneConfig: any): Promise<void> {
+    private static async initializeTimezone(autoTimezoneConfig: AutoTimezoneConfig): Promise<void> {
         try {
             log(false, 'STARTUP-TIMEZONE', 'Initializing timezone configuration...')
             
@@ -58,7 +91,7 @@ export class StartupConfig {
                             `✅ Timezone automatically adjusted to match location: ${timezoneMatch.detectedTimezone}`)
                     } else {
                         log(false, 'STARTUP-TIMEZONE', 
-                            `❌ Failed to adjust timezone automatically, keeping current setting`, 'warn')
+                            '❌ Failed to adjust timezone automatically, keeping current setting', 'warn')
                     }
                 } else if (timezoneMatch.isMatched) {
                     log(false, 'STARTUP-TIMEZONE', 
@@ -115,11 +148,7 @@ export class StartupConfig {
     /**
      * 获取启动配置摘要
      */
-    static async getStartupSummary(): Promise<{
-        timezone: any
-        geolocation: any
-        recommendations: string[]
-    }> {
+    static async getStartupSummary(): Promise<StartupSummary> {
         const recommendations: string[] = []
         
         try {
@@ -156,8 +185,22 @@ export class StartupConfig {
             }
         } catch (error) {
             return {
-                timezone: { error: 'Failed to detect timezone' },
-                geolocation: { error: 'Failed to detect location' },
+                timezone: {
+                    current: 'Unknown',
+                    offset: 'Unknown',
+                    name: 'Failed to detect timezone',
+                    isDST: false,
+                    matchesLocation: false,
+                    detectedTimezone: 'Unknown'
+                },
+                geolocation: {
+                    country: 'Unknown',
+                    countryCode: 'Unknown',
+                    city: 'Unknown',
+                    language: 'en',
+                    languageName: 'Failed to detect location',
+                    ip: 'Unknown'
+                },
                 recommendations: ['无法检测地理位置，请检查网络连接']
             }
         }

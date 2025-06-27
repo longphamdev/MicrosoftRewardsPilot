@@ -89,7 +89,7 @@ async function testGeoLanguageDetection() {
                 multiLanguage: {
                     enabled: true,
                     autoDetectLocation: true,
-                    fallbackLanguage: "en",
+                    fallbackLanguage: 'en',
                     detectedLanguage: location.language,
                     detectedCountry: location.countryCode
                 },

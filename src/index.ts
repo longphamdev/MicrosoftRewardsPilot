@@ -1,5 +1,5 @@
 import cluster from 'cluster'
-import { Page } from 'rebrowser-playwright'
+import { Page, BrowserContext } from 'rebrowser-playwright'
 
 import Browser from './browser/Browser'
 import BrowserFunc from './browser/BrowserFunc'
@@ -14,6 +14,7 @@ import { Workers } from './functions/Workers'
 import Activities from './functions/Activities'
 
 import { Account } from './interface/Account'
+import { DashboardData } from './interface/DashboardData'
 import Axios from './util/Axios'
 import { TwoFactorAuthRequiredError, AccountLockedError } from './interface/Errors'
 
@@ -152,7 +153,7 @@ export class MicrosoftRewardsBot {
                 // 添加账户间的延迟，避免请求过于频繁
                 if (i < accounts.length - 1) {
                     // 使用配置文件中的延迟设置，如果没有则使用默认值
-                    const accountDelayConfig = this.config.accountDelay || { min: "5min", max: "15min" }
+                    const accountDelayConfig = this.config.accountDelay || { min: '5min', max: '15min' }
                     const minDelay = this.utils.stringToMs(accountDelayConfig.min)
                     const maxDelay = this.utils.stringToMs(accountDelayConfig.max)
                     const delayMs = this.utils.randomNumber(minDelay, maxDelay)
@@ -197,7 +198,7 @@ export class MicrosoftRewardsBot {
         }
 
         // 报告最终结果
-        log('main', 'MAIN-SUMMARY', `Task execution completed:`, 'log', 'cyan')
+        log('main', 'MAIN-SUMMARY', 'Task execution completed:', 'log', 'cyan')
         log('main', 'MAIN-SUMMARY', `✅ Successful accounts: ${completedAccounts}/${accounts.length}`, 'log', 'green')
         log('main', 'MAIN-SUMMARY', `❌ Failed accounts: ${failedAccounts}/${accounts.length}`, 'log', failedAccounts > 0 ? 'yellow' : 'green')
         
@@ -384,7 +385,7 @@ export class MicrosoftRewardsBot {
     /**
      * 执行Desktop任务
      */
-    private async executeDesktopTasks(workerPage: any, data: any): Promise<void> {
+    private async executeDesktopTasks(workerPage: Page, data: DashboardData): Promise<void> {
         const tasks = [
             {
                 name: 'Daily Set',
@@ -538,7 +539,7 @@ export class MicrosoftRewardsBot {
     /**
      * 执行Mobile搜索任务
      */
-    private async performMobileSearches(browser: any, data: any, account: Account, retryCount: number, maxRetries: number): Promise<void> {
+    private async performMobileSearches(browser: BrowserContext, data: DashboardData, account: Account, retryCount: number, maxRetries: number): Promise<void> {
         // If no mobile searches data found, stop (Does not always exist on new accounts)
         if (!data.userStatus.counters.mobileSearch) {
             log(this.isMobile, 'MAIN', 'Unable to fetch search points, your account is most likely too "new" for this! Try again later!', 'warn')

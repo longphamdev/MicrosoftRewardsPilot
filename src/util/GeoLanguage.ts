@@ -1,6 +1,58 @@
 import axios from 'axios'
 import { log } from './Logger'
 
+// API响应接口定义
+interface IpApiResponse {
+    country?: string
+    countryCode?: string
+    city?: string
+    timezone?: string
+    currency?: string
+    query?: string
+    lat?: number
+    lon?: number
+}
+
+interface IpapiCoResponse {
+    country_name?: string
+    country_code?: string
+    city?: string
+    timezone?: string
+    currency?: string
+    ip?: string
+    latitude?: number
+    longitude?: number
+}
+
+interface IpinfoResponse {
+    country?: string
+    city?: string
+    timezone?: string
+    ip?: string
+    loc?: string
+}
+
+interface IpgeolocationResponse {
+    country_name?: string
+    country_code2?: string
+    city?: string
+    time_zone?: { name?: string }
+    currency?: { code?: string }
+    ip?: string
+    latitude?: string
+    longitude?: string
+}
+
+interface FreegeoipResponse {
+    country_name?: string
+    country_code?: string
+    city?: string
+    time_zone?: string
+    ip?: string
+    latitude?: string
+    longitude?: string
+}
+
 export interface GeoLocation {
     country: string
     countryCode: string
@@ -82,71 +134,82 @@ export class GeoLanguageDetector {
     /**
      * 解析不同服务的响应格式
      */
-    private static parseLocationResponse(data: any, service: string): GeoLocation | null {
+    private static parseLocationResponse(data: unknown, service: string): GeoLocation | null {
         try {
             if (service.includes('ip-api.com')) {
+                const apiData = data as IpApiResponse
                 return {
-                    country: data.country || 'Unknown',
-                    countryCode: data.countryCode || 'US',
-                    city: data.city || 'Unknown',
-                    timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: this.getLanguageFromCountry(data.countryCode || 'US'),
-                    currency: data.currency || 'USD',
-                    ip: data.query || 'Unknown',
-                    latitude: data.lat || 0,
-                    longitude: data.lon || 0
+                    country: apiData.country || 'Unknown',
+                    countryCode: apiData.countryCode || 'US',
+                    city: apiData.city || 'Unknown',
+                    timezone: apiData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(apiData.countryCode || 'US'),
+                    currency: apiData.currency || 'USD',
+                    ip: apiData.query || 'Unknown',
+                    latitude: apiData.lat || 0,
+                    longitude: apiData.lon || 0
                 }
             } else if (service.includes('ipapi.co')) {
+                const apiData = data as IpapiCoResponse
                 return {
-                    country: data.country_name || 'Unknown',
-                    countryCode: data.country_code || 'US',
-                    city: data.city || 'Unknown',
-                    timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: this.getLanguageFromCountry(data.country_code || 'US'),
-                    currency: data.currency || 'USD',
-                    ip: data.ip || 'Unknown',
-                    latitude: data.latitude || 0,
-                    longitude: data.longitude || 0
+                    country: apiData.country_name || 'Unknown',
+                    countryCode: apiData.country_code || 'US',
+                    city: apiData.city || 'Unknown',
+                    timezone: apiData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(apiData.country_code || 'US'),
+                    currency: apiData.currency || 'USD',
+                    ip: apiData.ip || 'Unknown',
+                    latitude: apiData.latitude || 0,
+                    longitude: apiData.longitude || 0
                 }
             } else if (service.includes('ipinfo.io')) {
+                const apiData = data as IpinfoResponse
                 // ipinfo.io使用"loc"字段返回"lat,lng"格式
-                const coordinates = data.loc ? data.loc.split(',') : ['0', '0']
+                const coordinates = apiData.loc ? apiData.loc.split(',') : ['0', '0']
+                const lat = coordinates[0] || '0'
+                const lng = coordinates[1] || '0'
                 return {
-                    country: data.country || 'US',
-                    countryCode: data.country || 'US',
-                    city: data.city || 'Unknown',
-                    timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: this.getLanguageFromCountry(data.country || 'US'),
+                    country: apiData.country || 'US',
+                    countryCode: apiData.country || 'US',
+                    city: apiData.city || 'Unknown',
+                    timezone: apiData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(apiData.country || 'US'),
                     currency: 'USD', // ipinfo.io不提供货币信息
-                    ip: data.ip || 'Unknown',
-                    latitude: parseFloat(coordinates[0]) || 0,
-                    longitude: parseFloat(coordinates[1]) || 0
+                    ip: apiData.ip || 'Unknown',
+                    latitude: parseFloat(lat) || 0,
+                    longitude: parseFloat(lng) || 0
                 }
             } else if (service.includes('ipgeolocation.io')) {
+                const apiData = data as IpgeolocationResponse
                 // 添加 ipgeolocation.io 解析
+                const lat = apiData.latitude || '0'
+                const lng = apiData.longitude || '0'
                 return {
-                    country: data.country_name || 'Unknown',
-                    countryCode: data.country_code2 || 'US',
-                    city: data.city || 'Unknown',
-                    timezone: data.time_zone?.name || Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: this.getLanguageFromCountry(data.country_code2 || 'US'),
-                    currency: data.currency?.code || 'USD',
-                    ip: data.ip || 'Unknown',
-                    latitude: parseFloat(data.latitude) || 0,
-                    longitude: parseFloat(data.longitude) || 0
+                    country: apiData.country_name || 'Unknown',
+                    countryCode: apiData.country_code2 || 'US',
+                    city: apiData.city || 'Unknown',
+                    timezone: apiData.time_zone?.name || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(apiData.country_code2 || 'US'),
+                    currency: apiData.currency?.code || 'USD',
+                    ip: apiData.ip || 'Unknown',
+                    latitude: parseFloat(lat) || 0,
+                    longitude: parseFloat(lng) || 0
                 }
             } else if (service.includes('freegeoip.app')) {
+                const apiData = data as FreegeoipResponse
                 // 添加 freegeoip.app 解析
+                const lat: string = apiData.latitude ? apiData.latitude : '0'
+                const lng: string = apiData.longitude ? apiData.longitude : '0'
                 return {
-                    country: data.country_name || 'Unknown',
-                    countryCode: data.country_code || 'US',
-                    city: data.city || 'Unknown',
-                    timezone: data.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: this.getLanguageFromCountry(data.country_code || 'US'),
+                    country: apiData.country_name || 'Unknown',
+                    countryCode: apiData.country_code || 'US',
+                    city: apiData.city || 'Unknown',
+                    timezone: apiData.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: this.getLanguageFromCountry(apiData.country_code || 'US'),
                     currency: 'USD', // freegeoip不提供货币信息
-                    ip: data.ip || 'Unknown',
-                    latitude: parseFloat(data.latitude) || 0,
-                    longitude: parseFloat(data.longitude) || 0
+                    ip: apiData.ip || 'Unknown',
+                    latitude: parseFloat(lat) || 0,
+                    longitude: parseFloat(lng) || 0
                 }
             }
         } catch (error) {
@@ -504,7 +567,7 @@ export class GeoLanguageDetector {
             return [
                 `${currentYear}年のニュース`,
                 `${currentMonth}の出来事`,
-                `今日の話題`,
+                '今日の話題',
                 `${currentYear}年トレンド`,
                 `最新の${currentMonth}情報`
             ]
@@ -512,23 +575,23 @@ export class GeoLanguageDetector {
             return [
                 `${currentYear}年新闻`,
                 `${currentMonth}大事件`,
-                `今日热点`,
+                '今日热点',
                 `${currentYear}年趋势`,
-                `最新资讯`
+                '最新资讯'
             ]
         } else if (languageCode === 'vi') {
             return [
                 `tin tức ${currentYear}`,
                 `sự kiện tháng ${currentDate.getMonth() + 1}`,
-                `tin hot hôm nay`,
+                'tin hot hôm nay',
                 `xu hướng ${currentYear}`,
-                `cập nhật mới nhất`
+                'cập nhật mới nhất'
             ]
         } else {
             return [
                 `${currentYear} news`,
                 `${currentMonth} ${currentYear} events`,
-                `today's trending topics`,
+                'today\'s trending topics',
                 `${currentYear} trends`,
                 `latest ${currentMonth} updates`
             ]

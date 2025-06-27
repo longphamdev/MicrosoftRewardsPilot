@@ -1,6 +1,31 @@
 import { GeoLanguageDetector } from './util/GeoLanguage'
 import { StartupConfig } from './util/StartupConfig'
 
+// 定义StartupSummary类型（与StartupConfig中的类型一致）
+interface StartupSummaryTimezone {
+    current: string
+    offset: string
+    name: string
+    isDST: boolean
+    matchesLocation: boolean
+    detectedTimezone: string
+}
+
+interface StartupSummaryGeolocation {
+    country: string
+    countryCode: string
+    city: string
+    language: string
+    languageName: string
+    ip: string
+}
+
+interface StartupSummary {
+    timezone: StartupSummaryTimezone
+    geolocation: StartupSummaryGeolocation
+    recommendations: string[]
+}
+
 async function testAutoTimezone() {
     console.log('=== 自动时区检测与设置功能测试 ===\n')
 
@@ -71,7 +96,7 @@ async function testAutoTimezone() {
         console.log('5. 启动配置系统测试...')
         console.log('模拟程序启动时的自动配置初始化...')
         
-        const startupSummary = await StartupConfig.getStartupSummary()
+        const startupSummary: StartupSummary = await StartupConfig.getStartupSummary()
         
         console.log('启动配置摘要:')
         console.log('  时区配置:')
@@ -139,7 +164,7 @@ async function testAutoTimezone() {
                 multiLanguage: {
                     enabled: true,
                     autoDetectLocation: true,
-                    fallbackLanguage: location.language || "en"
+                    fallbackLanguage: location.language || 'en'
                 }
             }
         }, null, 2))

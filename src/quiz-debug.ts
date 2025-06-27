@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chromium } from 'rebrowser-playwright'
+import { chromium, Page } from 'rebrowser-playwright'
 import { load, CheerioAPI } from 'cheerio'
 
 /**
@@ -78,7 +78,7 @@ class QuizPageAnalyzer {
         
         let foundDataSource = false
         
-        $('script').each((index, script) => {
+        $('script').each((_, script) => {
             const content = $(script).text()
             if (content.length > 100) { // 只检查有实际内容的script
                 for (const pattern of scriptPatterns) {
@@ -89,7 +89,7 @@ class QuizPageAnalyzer {
                         // 尝试提取JSON数据
                         const jsonMatch = content.match(/({[^{}]*quiz[^{}]*})/i)
                         if (jsonMatch) {
-                            console.log(`     包含Quiz相关JSON数据`)
+                            console.log('     包含Quiz相关JSON数据')
                         }
                         foundDataSource = true
                     }
@@ -109,7 +109,7 @@ class QuizPageAnalyzer {
     /**
      * 分析DOM元素
      */
-    private async analyzeDOMElements(page: any): Promise<void> {
+    private async analyzeDOMElements(page: Page): Promise<void> {
         const keySelectors = [
             { name: 'Quiz开始按钮', selector: '#rqStartQuiz' },
             { name: '答案选项0', selector: '#rqAnswerOption0' },
@@ -168,7 +168,7 @@ class QuizPageAnalyzer {
     /**
      * 生成适配建议
      */
-         private async generateSuggestions(page: any, $: CheerioAPI): Promise<void> {
+         private async generateSuggestions(page: Page, $: CheerioAPI): Promise<void> {
         const suggestions = []
         
         // 检查数据获取方法

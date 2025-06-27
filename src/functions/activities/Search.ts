@@ -7,6 +7,45 @@ import { Counters, DashboardData } from '../../interface/DashboardData'
 import { GoogleSearch } from '../../interface/Search'
 import { AxiosRequestConfig } from 'axios'
 
+// 扩展 Window 和 Navigator 接口以支持非标准属性
+declare global {
+    interface Window {
+        gc?: () => void
+        ontouchstart?: (() => void) | null
+    }
+    interface Navigator {
+        deviceMemory?: number
+    }
+}
+
+// 定义语言配置接口
+interface LanguageConfig {
+    name: string
+    code: string
+    googleTrendsLocale: string
+    searchQueries: {
+        news: string[]
+        common: string[]
+        food: string[]
+        tech: string[]
+        entertainment: string[]
+        sports: string[]
+    }
+}
+
+// 定义地理位置接口
+interface GeoLocation {
+    country: string
+    countryCode: string
+    city: string
+    timezone: string
+    language: string
+    currency: string
+    ip: string
+    latitude?: number
+    longitude?: number
+}
+
 type GoogleTrendsResponse = [
     string,
     [
@@ -51,7 +90,7 @@ export class Search extends Workers {
 
         // 多源搜索查询生成
         let allSearchQueries = await this.generateDiversifiedQueries(data)
-        allSearchQueries = this.bot.utils.shuffleArray(allSearchQueries)
+        allSearchQueries = this.bot.utils.shuffleArray(allSearchQueries) as (GoogleSearch | string)[]
 
         // 去重搜索词
         allSearchQueries = Array.from(new Set(allSearchQueries))
@@ -83,7 +122,7 @@ export class Search extends Workers {
         const totalQueries = queries.length
         let completedSearches = 0
         let earnedPoints = 0
-        let lastPointsCheck = missingPoints
+        const lastPointsCheck = missingPoints
         
         this.bot.log(this.bot.isMobile, 'SEARCH-PROGRESS', `Starting ${this.bot.isMobile ? 'mobile' : 'desktop'} search: ${missingPoints} points needed, ${totalQueries} queries available`)
         
@@ -333,14 +372,14 @@ export class Search extends Workers {
                 if (i >= allSearchQueries.length) {
                     // 如果用完了所有预定义查询，生成新的
                     this.bot.log(this.bot.isMobile, 'SEARCH-GENERATE-MORE', 'Generating additional search queries...')
-                    const additionalQueries = await this.generateAdditionalQueries(data)
+                    const additionalQueries = await this.generateAdditionalQueries()
                     allSearchQueries.push(...additionalQueries)
                 }
                 
-                const query = allSearchQueries[i++] as any
+                const query = allSearchQueries[i++] as GoogleSearch | string
 
                 // Get related search terms to the search queries
-                const relatedTerms = await this.getRelatedTerms(typeof query === 'string' ? query : query?.topic)
+                const relatedTerms = await this.getRelatedTerms(typeof query === 'string' ? query : (query as GoogleSearch).topic)
                 if (relatedTerms.length > 3) {
                     // Search for the first 2 related terms
                     for (const term of relatedTerms.slice(1, 3)) {
@@ -451,7 +490,7 @@ export class Search extends Workers {
     /**
      * 获取地理位置信息（包含备用方案）
      */
-    private async getGeoLocationWithFallback(data: DashboardData): Promise<any> {
+    private async getGeoLocationWithFallback(data: DashboardData): Promise<GeoLocation> {
         try {
             // 优先级1: 尝试通过IP地址检测地理位置
             this.bot.log(this.bot.isMobile, 'SEARCH-GEO', 'Attempting IP-based location detection...', 'log')
@@ -540,7 +579,7 @@ export class Search extends Workers {
     /**
      * 从地理位置获取语言配置
      */
-    private async getLanguageConfigFromGeo(geoLocation: any): Promise<any> {
+    private async getLanguageConfigFromGeo(geoLocation: GeoLocation): Promise<LanguageConfig> {
         try {
             const { GeoLanguageDetector } = await import('../../util/GeoLanguage')
             return GeoLanguageDetector.getLanguageConfig(geoLocation.language)
@@ -579,7 +618,7 @@ export class Search extends Workers {
     /**
      * 生成本地化的时事查询
      */
-    private async generateLocalizedNewsQueries(languageConfig: any): Promise<string[]> {
+    private async generateLocalizedNewsQueries(languageConfig: LanguageConfig): Promise<string[]> {
         try {
             const { GeoLanguageDetector } = await import('../../util/GeoLanguage')
             const timeBasedQueries = GeoLanguageDetector.generateTimeBasedQueries(languageConfig.code)
@@ -591,7 +630,7 @@ export class Search extends Workers {
             
             // 随机选择4-6个查询
             const selectedCount = 4 + Math.floor(Math.random() * 3)
-            return this.bot.utils.shuffleArray(combinedQueries).slice(0, selectedCount)
+            return this.bot.utils.shuffleArray(combinedQueries).slice(0, selectedCount) as string[]
         } catch (error) {
             // 备用方案：日文时事查询
             const currentDate = new Date()
@@ -608,7 +647,7 @@ export class Search extends Workers {
     /**
      * 生成本地化的常见查询
      */
-    private generateLocalizedCommonQueries(languageConfig: any): string[] {
+    private generateLocalizedCommonQueries(languageConfig: LanguageConfig): string[] {
         const commonQueries = languageConfig.searchQueries.common || []
         const foodQueries = languageConfig.searchQueries.food || []
         
@@ -617,13 +656,13 @@ export class Search extends Workers {
         
         // 随机选择3-5个查询
         const selectedCount = 3 + Math.floor(Math.random() * 3)
-        return this.bot.utils.shuffleArray(combinedQueries).slice(0, selectedCount)
+        return this.bot.utils.shuffleArray(combinedQueries).slice(0, selectedCount) as string[]
     }
 
     /**
      * 生成本地化的技术娱乐查询
      */
-    private generateLocalizedTechEntertainmentQueries(languageConfig: any): string[] {
+    private generateLocalizedTechEntertainmentQueries(languageConfig: LanguageConfig): string[] {
         const techQueries: string[] = languageConfig.searchQueries.tech || []
         const entertainmentQueries: string[] = languageConfig.searchQueries.entertainment || []
         const sportsQueries: string[] = languageConfig.searchQueries.sports || []
@@ -689,14 +728,14 @@ export class Search extends Workers {
         const newsQueries = [
             `${currentYear} news today`,
             `${currentMonth} ${currentYear} events`,
-            `today's headlines`,
+            'today\'s headlines',
             `current events ${currentYear}`,
             `news updates ${currentMonth}`,
-            `breaking news today`,
+            'breaking news today',
             `world news ${currentYear}`,
-            `latest technology news`,
-            `sports news today`,
-            `weather forecast today`
+            'latest technology news',
+            'sports news today',
+            'weather forecast today'
         ]
         
         // 随机选择3-5个时事查询
@@ -788,8 +827,8 @@ export class Search extends Workers {
                         // 强制垃圾回收（如果支持）
                         try {
                             await searchPage.evaluate(() => {
-                                if ((window as any).gc) {
-                                    (window as any).gc()
+                                if (window.gc) {
+                                    window.gc()
                                 }
                             })
                         } catch (gcError) {
@@ -822,7 +861,7 @@ export class Search extends Workers {
                                     height: window.innerHeight 
                                 },
                                 platform: navigator.platform,
-                                deviceMemory: (navigator as any).deviceMemory || 'unknown'
+                                deviceMemory: navigator.deviceMemory || 'unknown'
                             }
                         })
                         
@@ -843,7 +882,7 @@ export class Search extends Workers {
                                 
                                 // 触发触摸事件支持
                                 if (!('ontouchstart' in window)) {
-                                    (window as any).ontouchstart = () => {}
+                                    window.ontouchstart = () => {}
                                 }
                                 
                                 // 确保移动端UA检测
@@ -882,7 +921,7 @@ export class Search extends Workers {
                 // 确保在正确的搜索页面
                 const currentUrl = searchPage.url()
                 if (!currentUrl.includes('bing.com')) {
-                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', `Not on Bing page, navigating to Bing...`, 'warn')
+                    this.bot.log(this.bot.isMobile, 'SEARCH-BING', 'Not on Bing page, navigating to Bing...', 'warn')
                     await searchPage.goto('https://bing.com', { waitUntil: 'domcontentloaded', timeout: 30000 })
                     await this.bot.utils.wait(2000)
                 }
@@ -1100,8 +1139,8 @@ export class Search extends Workers {
                             // 强制垃圾回收（如果支持）
                             try {
                                 await searchPage.evaluate(() => {
-                                    if ((window as any).gc) {
-                                        (window as any).gc()
+                                    if (window.gc) {
+                                        window.gc()
                                     }
                                 })
                             } catch (gcError) {
@@ -1379,8 +1418,8 @@ export class Search extends Workers {
      */
          private async calculateSmartDelay(searchIndex: number): Promise<number> {
          const config = this.bot.config.searchSettings.searchDelay
-         const minDelayStr = String(config.min || "45s")
-         const maxDelayStr = String(config.max || "120s")
+         const minDelayStr = String(config.min || '45s')
+         const maxDelayStr = String(config.max || '120s')
          let minDelay = this.bot.utils.stringToMs(minDelayStr)
          let maxDelay = this.bot.utils.stringToMs(maxDelayStr)
         
@@ -1646,10 +1685,9 @@ export class Search extends Workers {
             }
 
             const response = await this.bot.axios.request(request, false) // 不使用代理
-            const data = response.data
 
-            if (data?.data?.realtime) {
-                for (const item of data.data.realtime.slice(0, 30)) { // 取前30个热搜
+            if (response.data?.data?.realtime) {
+                for (const item of response.data.data.realtime.slice(0, 30)) { // 取前30个热搜
                     if (item.word) {
                         queryTerms.push({
                             topic: item.word,
@@ -2032,7 +2070,7 @@ export class Search extends Workers {
     /**
      * 生成额外的搜索查询（当预定义查询不足时）
      */
-    private async generateAdditionalQueries(data: DashboardData): Promise<(GoogleSearch | string)[]> {
+    private async generateAdditionalQueries(): Promise<(GoogleSearch | string)[]> {
         const additionalQueries: (GoogleSearch | string)[] = []
         
         try {

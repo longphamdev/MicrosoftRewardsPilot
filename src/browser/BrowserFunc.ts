@@ -356,14 +356,40 @@ export default class BrowserFunc {
     private async getQuizDataDirect(page: Page): Promise<QuizData | null> {
         try {
             const quizData = await page.evaluate(() => {
+                // 定义Quiz数据的基本结构
+                interface QuizDataStructure {
+                    maxQuestions?: number
+                    correctAnswer?: string | number
+                    numberOfOptions?: number
+                    questions?: Array<{
+                        question: string
+                        options: string[]
+                        correctAnswerIndex?: number
+                    }>
+                    currentQuestionIndex?: number
+                    [key: string]: unknown
+                }
+
+                // 定义window的扩展类型
+                interface ExtendedWindow extends Window {
+                    _w?: { rewardsQuizRenderInfo?: QuizDataStructure }
+                    rewardsQuizRenderInfo?: QuizDataStructure
+                    Microsoft?: { Rewards?: { Quiz?: QuizDataStructure } }
+                    quiz_data?: QuizDataStructure
+                    quizData?: QuizDataStructure
+                    REWARDS_QUIZ_DATA?: QuizDataStructure
+                }
+
+                const win = window as ExtendedWindow
+                
                 // 尝试多种可能的全局变量
                 const candidates = [
-                    (window as any)._w?.rewardsQuizRenderInfo,
-                    (window as any).rewardsQuizRenderInfo,
-                    (window as any).Microsoft?.Rewards?.Quiz,
-                    (window as any).quiz_data,
-                    (window as any).quizData,
-                    (window as any).REWARDS_QUIZ_DATA
+                    win._w?.rewardsQuizRenderInfo,
+                    win.rewardsQuizRenderInfo,
+                    win.Microsoft?.Rewards?.Quiz,
+                    win.quiz_data,
+                    win.quizData,
+                    win.REWARDS_QUIZ_DATA
                 ]
 
                 for (const candidate of candidates) {
@@ -407,7 +433,7 @@ export default class BrowserFunc {
 
             // 检查每个script标签
             for (const pattern of scriptPatterns) {
-                const scripts = $('script').filter((index, element) => {
+                const scripts = $('script').filter((_, element) => {
                     const content = $(element).text() || ''
                     const searchTerm = pattern.name.split('.')[0] || pattern.name
                     return content.includes(searchTerm)
@@ -444,10 +470,14 @@ export default class BrowserFunc {
     private async getQuizDataFromAPI(page: Page): Promise<QuizData | null> {
         return new Promise((resolve) => {
             const timeout = setTimeout(() => resolve(null), 8000)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let responseHandler: ((response: any) => void) | null = null
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             responseHandler = async (response: any) => {
                 try {
+                    if (!response || typeof response.url !== 'function') return
+                    
                     const url = response.url()
                     if (!url || typeof url !== 'string') return
                     
@@ -457,20 +487,22 @@ export default class BrowserFunc {
                         (url.includes('quiz') && url.includes('api')) ||
                         url.includes('/activities/quiz')) {
                         
-                        const headers = response.headers()
-                        const contentType = String(headers['content-type'] || headers['Content-Type'] || '')
-                        if (contentType.includes('application/json')) {
-                            const data = await response.json()
-                            
-                            // 验证是否为Quiz数据
-                            if (data && (data.maxQuestions || data.correctAnswer || data.numberOfOptions)) {
-                                clearTimeout(timeout)
-                                if (responseHandler) {
-                                    page.off('response', responseHandler)
+                        if (typeof response.headers === 'function') {
+                            const headers = response.headers()
+                            const contentType = String(headers['content-type'] || headers['Content-Type'] || '')
+                            if (contentType.includes('application/json') && typeof response.json === 'function') {
+                                const data = await response.json()
+                                
+                                // 验证是否为Quiz数据
+                                if (data && (data.maxQuestions || data.correctAnswer || data.numberOfOptions)) {
+                                    clearTimeout(timeout)
+                                    if (responseHandler) {
+                                        page.off('response', responseHandler)
+                                    }
+                                    this.bot.log(this.bot.isMobile, 'GET-QUIZ-DATA-API', `Quiz data found via API: ${url}`)
+                                    resolve(data as QuizData)
+                                    return
                                 }
-                                this.bot.log(this.bot.isMobile, 'GET-QUIZ-DATA-API', `Quiz data found via API: ${url}`)
-                                resolve(data as QuizData)
-                                return
                             }
                         }
                     }

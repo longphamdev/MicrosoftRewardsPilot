@@ -1,4 +1,4 @@
-import playwright from 'rebrowser-playwright'
+import playwright, { Page } from 'rebrowser-playwright'
 import readline from 'readline'
 
 /**
@@ -328,7 +328,7 @@ class Manual2FAHelper {
         }
     }
 
-    private async performManualLogin(page: any, email: string, password: string) {
+    private async performManualLogin(page: Page, email: string, password: string) {
         console.log(this.strings.loginFlow)
         
         // 1. 导航到登录页面
@@ -480,7 +480,7 @@ class Manual2FAHelper {
         }
     }
 
-    private async handle2FAManually(page: any) {
+    private async handle2FAManually(page: Page) {
         console.log(this.strings.detecting2FA)
 
         // 检查常见的2FA元素

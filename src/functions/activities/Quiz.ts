@@ -82,7 +82,7 @@ export class Quiz extends Workers {
                                 const element = document.querySelector(selector)
                                 if (element) {
                                     (element as HTMLElement).style.display = 'block';
-                                    (element as HTMLElement).style.visibility = 'visible';
+                                    (element as HTMLElement).style.visibility = 'visible'
                                 }
                             }, `#rqAnswerOption${i}`)
                             
@@ -132,7 +132,7 @@ export class Quiz extends Workers {
                                 const element = document.querySelector(selector)
                                 if (element) {
                                     (element as HTMLElement).style.display = 'block';
-                                    (element as HTMLElement).style.visibility = 'visible';
+                                    (element as HTMLElement).style.visibility = 'visible'
                                 }
                             }, `#rqAnswerOption${i}`)
                             

@@ -1,4 +1,4 @@
-import playwright, { BrowserContext } from 'rebrowser-playwright'
+import playwright, { BrowserContext, Browser as PlaywrightBrowser } from 'rebrowser-playwright'
 
 import { newInjectedContext } from 'fingerprint-injector'
 import { FingerprintGenerator } from 'fingerprint-generator'
@@ -9,6 +9,22 @@ import { updateFingerprintUserAgent } from '../util/UserAgent'
 import { GeoLanguageDetector, GeoLocation } from '../util/GeoLanguage'
 
 import { AccountProxy } from '../interface/Account'
+
+// 定义浏览器上下文选项的类型
+interface BrowserContextOptions {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fingerprint?: any // 第三方库的指纹类型，必须使用any以兼容外部库
+    viewport?: { width: number; height: number }
+    deviceScaleFactor?: number
+    isMobile?: boolean
+    hasTouch?: boolean
+    userAgent?: string
+    locale?: string
+    timezoneId?: string
+    permissions?: string[]
+    geolocation?: { latitude: number; longitude: number }
+    extraHTTPHeaders?: Record<string, string>
+}
 
 /* Test Stuff
 https://abrahamjuliot.github.io/creepjs/
@@ -73,7 +89,7 @@ class Browser {
             }
 
             // 根据语言设置HTTP头部
-            const acceptLanguage = this.getAcceptLanguageHeader(location.language, locale)
+            const acceptLanguage = this.getAcceptLanguageHeader(location.language)
             
             this.bot.log(this.bot.isMobile, 'BROWSER-GEO', 
                 `Auto-detected location: ${location.country} (${location.countryCode}) | ` +
@@ -126,7 +142,7 @@ class Browser {
     /**
      * 根据语言生成Accept-Language头部
      */
-    private getAcceptLanguageHeader(language: string, locale: string): string {
+    private getAcceptLanguageHeader(language: string): string {
         const languageHeaders: Record<string, string> = {
             'ja': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
             'zh-CN': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -192,7 +208,7 @@ class Browser {
                 '--no-service-autorun',
                 '--no-pings',
                 '--memory-pressure-off',
-                '--max_old_space_size=4096',
+                '--max_old_space_size=4096'
             ]
         })
 
@@ -201,12 +217,20 @@ class Browser {
         const fingerprint = sessionData.fingerprint ? sessionData.fingerprint : await this.generateFingerprint()
 
         // 创建浏览器上下文，使用自动检测的地理位置配置
-        let contextOptions: any = { fingerprint: fingerprint }
+        const baseContextOptions: BrowserContextOptions = { 
+            fingerprint: fingerprint,
+            locale: geoConfig.locale,
+            timezoneId: geoConfig.timezoneId,
+            geolocation: geoConfig.geolocation,
+            extraHTTPHeaders: geoConfig.extraHTTPHeaders
+        }
+
+        let contextOptions: BrowserContextOptions
 
         // 关键修复：为移动端添加完整的移动设备配置
         if (this.bot.isMobile) {
             contextOptions = {
-                ...contextOptions,
+                ...baseContextOptions,
                 viewport: { 
                     width: 412, 
                     height: 915 
@@ -215,34 +239,26 @@ class Browser {
                 isMobile: true, // 关键：标识为移动设备
                 hasTouch: true, // 关键：启用触摸支持
                 userAgent: fingerprint.fingerprint.navigator.userAgent, // 确保使用移动端UA
-                locale: geoConfig.locale, // 自动检测的地区设置
-                timezoneId: geoConfig.timezoneId, // 自动检测的时区
-                permissions: ['geolocation'], // 移动端权限
-                geolocation: geoConfig.geolocation, // 自动检测的地理坐标
-                extraHTTPHeaders: geoConfig.extraHTTPHeaders // 自动生成的HTTP头部
+                permissions: ['geolocation'] // 移动端权限
             }
             
             this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', 'Configuring browser with full mobile device simulation')
-            this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', `Viewport: 412x915, Touch: enabled, Mobile: true`)
+            this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', 'Viewport: 412x915, Touch: enabled, Mobile: true')
             this.bot.log(this.bot.isMobile, 'BROWSER-MOBILE', `Auto-detected locale: ${geoConfig.locale}, timezone: ${geoConfig.timezoneId}`)
         } else {
             // 桌面端配置
             contextOptions = {
-                ...contextOptions,
+                ...baseContextOptions,
                 viewport: { 
                     width: 1920, 
                     height: 1080 
-                },
-                locale: geoConfig.locale, // 自动检测的地区设置
-                timezoneId: geoConfig.timezoneId, // 自动检测的时区
-                geolocation: geoConfig.geolocation, // 自动检测的地理坐标
-                extraHTTPHeaders: geoConfig.extraHTTPHeaders // 自动生成的HTTP头部
+                }
             }
             
             this.bot.log(this.bot.isMobile, 'BROWSER-DESKTOP', `Auto-detected locale: ${geoConfig.locale}, timezone: ${geoConfig.timezoneId}`)
         }
 
-        const context = await newInjectedContext(browser as any, contextOptions)
+        const context = await newInjectedContext(browser as PlaywrightBrowser, contextOptions)
 
         // Set timeout to preferred amount
         context.setDefaultTimeout(this.bot.utils.stringToMs(this.bot.config?.globalTimeout ?? 30000))

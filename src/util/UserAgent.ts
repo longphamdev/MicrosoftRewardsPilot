@@ -129,7 +129,7 @@ export function getSystemComponents(mobile: boolean): string {
         const additionalSpecs = [
             '', // 无额外规格
             '; wv', // WebView标识
-            'Linux; U', // 旧版格式
+            'Linux; U' // 旧版格式
         ]
         const selectedSpec = additionalSpecs[Math.floor(Math.random() * additionalSpecs.length)]
         

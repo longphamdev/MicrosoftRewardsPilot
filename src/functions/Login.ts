@@ -182,6 +182,24 @@ export class Login {
             // 等待页面加载完成
             await this.bot.utils.wait(3000)
             
+            // 检测2FA冲突 - 如果是并行模式，添加随机延迟避免冲突
+            if (this.bot.config.parallel) {
+                const randomDelay = Math.floor(Math.random() * 10000) + 5000 // 5-15秒随机延迟
+                this.bot.log(this.bot.isMobile, 'LOGIN', `Parallel mode detected, waiting ${randomDelay/1000}s to avoid 2FA conflicts`)
+                await this.bot.utils.wait(randomDelay)
+            }
+            
+            // 检查是否已经登录成功（可能其他实例已完成登录）
+            const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 3000 }).then(() => true).catch(() => false)
+            if (isLoggedIn) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', '2FA not required - already logged in')
+                return
+            }
+            
+            // 记录当前页面状态
+            const currentUrl = page.url()
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Current page URL: ${currentUrl}`)
+            
             // 检查是否有SMS验证选项
             const smsOption = await page.waitForSelector('input[name="otc"]', { state: 'visible', timeout: 3000 }).catch(() => null)
             if (smsOption) {
@@ -201,26 +219,18 @@ export class Login {
             // 尝试获取Authenticator App验证码
             const numberToPress = await this.get2FACode(page)
             if (numberToPress) {
+                // 检查是否有并行2FA冲突
+                if (this.bot.config.parallel) {
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Parallel mode: Multiple 2FA requests may cause conflicts', 'warn')
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'If verification fails, try running accounts individually', 'warn')
+                }
+                
                 // Authentictor App verification
                 await this.authAppVerification(page, numberToPress)
             } else {
-                // 如果找不到任何2FA选项，记录详细信息帮助调试
-                this.bot.log(this.bot.isMobile, 'LOGIN', 'No 2FA method detected, checking page content...')
-                
-                // 检查是否已经登录成功
-                const isLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 5000 }).then(() => true).catch(() => false)
-                if (isLoggedIn) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', '2FA not required - already logged in')
-                    return
-                }
-                
-                // 记录当前页面URL帮助调试
-                const currentUrl = page.url()
-                this.bot.log(this.bot.isMobile, 'LOGIN', `Current page URL: ${currentUrl}`)
-                
-                // 如果在移动端，可能需要特殊处理
+                // 如果在移动端，尝试特殊处理
                 if (this.bot.isMobile) {
-                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Mobile 2FA might require manual intervention or OAuth token', 'warn')
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Mobile 2FA: No display code found, trying mobile-specific handling...')
                     
                     // 尝试检测并处理移动端特有的2FA页面
                     const mobile2FAHandled = await this.handleMobile2FAPage(page)
@@ -229,7 +239,26 @@ export class Login {
                         return
                     }
                     
+                    // 如果是并行模式，可能桌面端已经处理了2FA
+                    if (this.bot.config.parallel) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN', 'Parallel mode: Desktop may have handled 2FA, waiting...', 'warn')
+                        await this.bot.utils.wait(10000) // 等待10秒
+                        
+                        // 再次检查是否已登录
+                        const isNowLoggedIn = await page.waitForSelector('html[data-role-name="RewardsPortal"]', { timeout: 5000 }).then(() => true).catch(() => false)
+                        if (isNowLoggedIn) {
+                            this.bot.log(this.bot.isMobile, 'LOGIN', 'Login completed by parallel process')
+                            return
+                        }
+                    }
+                    
                     throw new Error('Mobile 2FA authentication method not supported - OAuth token may be required')
+                } else {
+                    // 桌面端找不到2FA验证码
+                    this.bot.log(this.bot.isMobile, 'LOGIN', 'Desktop 2FA: No verification method detected')
+                    
+                    // 检查是否有其他2FA选项
+                    await this.tryAlternative2FAMethods(page)
                 }
             }
         } catch (error) {
@@ -372,6 +401,49 @@ export class Login {
         await page.fill('input[name="otc"]', code)
         await page.keyboard.press('Enter')
         this.bot.log(this.bot.isMobile, 'LOGIN', '2FA code entered successfully')
+    }
+
+    private async tryAlternative2FAMethods(page: Page) {
+        try {
+            this.bot.log(this.bot.isMobile, 'LOGIN', 'Trying alternative 2FA methods...')
+            
+            // 检查是否有"使用其他方法"链接
+            const otherMethodsLink = await page.waitForSelector('a:has-text("Use a different method"), button:has-text("Use a different method")', { timeout: 3000 }).catch(() => null)
+            if (otherMethodsLink) {
+                await otherMethodsLink.click()
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Clicked "Use a different method"')
+                await this.bot.utils.wait(3000)
+                
+                // 重新尝试检测2FA方法
+                const newNumberToPress = await this.get2FACode(page)
+                if (newNumberToPress) {
+                    await this.authAppVerification(page, newNumberToPress)
+                    return
+                }
+            }
+            
+            // 检查是否有继续按钮
+            const continueButton = await page.waitForSelector('button[type="submit"], input[type="submit"]', { timeout: 3000 }).catch(() => null)
+            if (continueButton) {
+                await continueButton.click()
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Clicked continue button')
+                await this.bot.utils.wait(3000)
+                return
+            }
+            
+            // 检查是否有密码重新验证选项
+            const passwordField = await page.waitForSelector('input[type="password"]', { timeout: 3000 }).catch(() => null)
+            if (passwordField) {
+                this.bot.log(this.bot.isMobile, 'LOGIN', 'Password re-verification required', 'warn')
+                throw new Error('Password re-verification required - manual intervention needed')
+            }
+            
+            this.bot.log(this.bot.isMobile, 'LOGIN', 'No alternative 2FA methods found', 'warn')
+            
+        } catch (error) {
+            this.bot.log(this.bot.isMobile, 'LOGIN', `Alternative 2FA methods failed: ${error}`, 'error')
+            throw error
+        }
     }
 
     async getMobileAccessToken(page: Page, email: string) {
@@ -552,6 +624,63 @@ export class Login {
             const currentUrl = page.url()
             this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Handling mobile 2FA page: ${currentUrl}`)
             
+            // 在并行模式下，等待一些时间避免与桌面端冲突
+            if (this.bot.config.parallel) {
+                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Parallel mode: Adding delay to avoid conflicts with desktop 2FA')
+                await this.bot.utils.wait(5000)
+            }
+            
+            // 尝试查找移动端特有的2FA元素
+            const mobile2FAElements = [
+                'input[name="otc"]', // SMS验证码
+                'input[name="proofconfirmation"]', // 邮箱验证码
+                '#displaySign', // Authenticator显示号码
+                '[data-testid="displaySign"]', // 新版Authenticator显示
+                'div:has-text("Enter the number shown")', // 移动端Authenticator提示
+                'div:has-text("Use your authenticator app")' // Authenticator应用提示
+            ]
+            
+            let foundElement = null
+            let elementType = ''
+            
+            for (const selector of mobile2FAElements) {
+                const element = await page.waitForSelector(selector, { state: 'visible', timeout: 2000 }).catch(() => null)
+                if (element) {
+                    foundElement = element
+                    elementType = selector
+                    this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Found mobile 2FA element: ${selector}`)
+                    break
+                }
+            }
+            
+            if (foundElement) {
+                if (elementType.includes('otc')) {
+                    // SMS验证
+                    this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'SMS verification detected - requires manual input', 'warn')
+                    await this.authSMSVerification(page)
+                    return true
+                } else if (elementType.includes('proofconfirmation')) {
+                    // 邮箱验证
+                    this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Email verification detected - requires manual input', 'warn')
+                    await this.authEmailVerification(page)
+                    return true
+                } else if (elementType.includes('displaySign') || elementType.includes('Enter the number')) {
+                    // Authenticator App验证
+                    const code = await foundElement.textContent()
+                    if (code && code.trim()) {
+                        this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', `Found Authenticator code on mobile: ${code}`)
+                        
+                        // 检查是否与桌面端代码冲突
+                        if (this.bot.config.parallel) {
+                            this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Parallel mode: Mobile Authenticator code may conflict with desktop', 'warn')
+                        }
+                        
+                        await this.authAppVerification(page, code.trim())
+                        return true
+                    }
+                }
+            }
+            
             // 检查是否是passkey页面
             if (currentUrl.includes('passkey')) {
                 this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'Detected passkey authentication page')
@@ -574,13 +703,6 @@ export class Login {
                         return true
                     }
                 }
-            }
-            
-            // 检查是否有SMS验证输入框
-            const smsInput = await page.waitForSelector('input[name="otc"]', { state: 'visible', timeout: 3000 }).catch(() => null)
-            if (smsInput) {
-                this.bot.log(this.bot.isMobile, 'LOGIN-MOBILE-2FA', 'SMS verification detected - requires manual input', 'warn')
-                return false // 需要手动处理
             }
             
             // 检查是否有其他验证方法选项
