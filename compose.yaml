@@ -4,7 +4,7 @@ services:
     container_name: microsoftrewardspilot
     restart: unless-stopped
     volumes:
-      ### 配置文件和会话数据将保存在当前项目目录中
+      ### 请先复制示例配置文件：cp config/*.example config/accounts.json && cp config/config.json.example config/config.json
       - ./config/accounts.json:/usr/src/microsoftrewardspilot/dist/config/accounts.json
       - ./config/config.json:/usr/src/microsoftrewardspilot/dist/config/config.json 
       - ./sessions:/usr/src/microsoftrewardspilot/dist/browser/sessions # Optional, saves your login session

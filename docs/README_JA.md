@@ -42,7 +42,9 @@ cd MicrosoftRewardsPilot
 npm i
 
 # 3. 設定ファイル
-# config/config.json と config/accounts.json を編集
+# サンプル設定ファイルをコピーして編集
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 4. ビルドと実行
 npm run build
@@ -56,7 +58,9 @@ npm start
 
 ```bash
 # 1. 設定ファイルの準備
-# config/config.json と config/accounts.json を編集
+# サンプル設定ファイルをコピーして編集
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 2. ビルド
 npm run build

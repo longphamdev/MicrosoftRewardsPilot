@@ -69,8 +69,6 @@
         "interfaces/**/*.ts",
         "utils/**/*.ts",
         "tests/**/*.ts",
-        "config/accounts.json",
-        "config/config.json",
         "functions/queries.json"
     ],
     "exclude": [

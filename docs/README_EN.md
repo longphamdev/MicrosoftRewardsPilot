@@ -42,7 +42,9 @@ cd MicrosoftRewardsPilot
 npm i
 
 # 3. Configuration
-# Edit config/config.json and config/accounts.json
+# Copy example configuration files and edit them
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 4. Build and Run
 npm run build
@@ -56,7 +58,9 @@ npm start
 
 ```bash
 # 1. Prepare Configuration Files
-# Edit config/config.json and config/accounts.json
+# Copy example configuration files and edit them
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 2. Build
 npm run build

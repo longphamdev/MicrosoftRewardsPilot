@@ -42,7 +42,9 @@ cd MicrosoftRewardsPilot
 npm i
 
 # 3. 配置文件
-# 编辑 config/config.json 和 config/accounts.json
+# 复制示例配置文件并编辑
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 4. 构建运行
 npm run build
@@ -56,7 +58,9 @@ npm start
 
 ```bash
 # 1. 准备配置文件
-# 编辑 config/config.json 和 config/accounts.json
+# 复制示例配置文件并编辑
+cp config/config.json.example config/config.json
+cp config/accounts.json.example config/accounts.json
 
 # 2. 构建
 npm run build
