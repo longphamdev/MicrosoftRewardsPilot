@@ -1,4 +1,4 @@
-import { loadAccounts, loadConfig, refreshAllConfigs, clearConfigCache, clearAccountsCache } from './util/Load'
+import { loadAccounts, loadConfig, refreshAllConfigs, clearConfigCache, clearAccountsCache } from '../utils/Load'
 
 /**
  * 测试动态配置加载功能

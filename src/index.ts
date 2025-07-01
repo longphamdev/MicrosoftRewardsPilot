@@ -1,22 +1,22 @@
 import cluster from 'cluster'
 import { Page, BrowserContext } from 'rebrowser-playwright'
 
-import Browser from './browser/Browser'
-import BrowserFunc from './browser/BrowserFunc'
-import BrowserUtil from './browser/BrowserUtil'
+import Browser from '../browser/Browser'
+import BrowserFunc from '../browser/BrowserFunc'
+import BrowserUtil from '../browser/BrowserUtil'
 
-import { log } from './util/Logger'
-import Util from './util/Utils'
-import { loadAccounts, loadConfig, saveSessionData, refreshAllConfigs } from './util/Load'
+import { log } from '../utils/Logger'
+import Util from '../utils/Utils'
+import { loadAccounts, loadConfig, saveSessionData, refreshAllConfigs } from '../utils/Load'
 
-import { Login } from './functions/Login'
-import { Workers } from './functions/Workers'
-import Activities from './functions/Activities'
+import { Login } from '../functions/Login'
+import { Workers } from '../functions/Workers'
+import Activities from '../functions/Activities'
 
-import { Account } from './interface/Account'
-import { DashboardData } from './interface/DashboardData'
-import Axios from './util/Axios'
-import { TwoFactorAuthRequiredError, AccountLockedError } from './interface/Errors'
+import { Account } from '../interfaces/Account'
+import { DashboardData } from '../interfaces/DashboardData'
+import Axios from '../utils/Axios'
+import { TwoFactorAuthRequiredError, AccountLockedError } from '../interfaces/Errors'
 
 
 // Main bot class
@@ -42,8 +42,7 @@ export class MicrosoftRewardsBot {
     private login = new Login(this)
     private accessToken: string = ''
 
-    //@ts-expect-error Will be initialized later
-    public axios: Axios
+    public axios!: Axios
 
     constructor(isMobile: boolean) {
         this.isMobile = isMobile
@@ -161,13 +160,20 @@ export class MicrosoftRewardsBot {
                     log('main', 'MAIN-WORKER', `⏱️ Waiting ${Math.round(delayMs/60000)} minutes before processing next account...`)
                     log('main', 'MAIN-WORKER', `Next account will start at: ${new Date(Date.now() + delayMs).toLocaleTimeString()}`)
                     
-                    // 显示倒计时
+                    // 显示倒计时 - 每5分钟显示一次，避免频繁刷屏
+                    let lastDisplayTime = 0
                     const countdownInterval = setInterval(() => {
                         const remaining = delayMs - (Date.now() - startTime)
+                        const currentTime = Date.now()
+                        
                         if (remaining > 0) {
-                            process.stdout.write(`\r⏳ Time remaining: ${Math.round(remaining/60000)} minutes...`)
+                            // 每5分钟显示一次，或者是第一次显示
+                            if (currentTime - lastDisplayTime >= 300000 || lastDisplayTime === 0) {
+                                console.log(`⏳ Time remaining: ${Math.round(remaining/60000)} minutes...`)
+                                lastDisplayTime = currentTime
+                            }
                         }
-                    }, 10000)  // 每10秒更新一次
+                    }, 60000)  // 每1分钟检查一次，但只在满足条件时显示
                     
                     const startTime = Date.now()
                     await this.utils.wait(delayMs)
@@ -586,18 +592,18 @@ export class MicrosoftRewardsBot {
                     }
 
                     // 如果还在重试范围内
-                    if (retryCount < maxRetries) {
-                        log(this.isMobile, 'MAIN', `Mobile search incomplete (attempt ${retryCount + 1}/${maxRetries + 1}). Retrying with new browser...`, 'log', 'yellow')
+                if (retryCount < maxRetries) {
+                    log(this.isMobile, 'MAIN', `Mobile search incomplete (attempt ${retryCount + 1}/${maxRetries + 1}). Retrying with new browser...`, 'log', 'yellow')
                         log(this.isMobile, 'MOBILE-SEARCH-RETRY', `${remainingPoints} points still need to be earned`, 'warn')
 
-                        // Close current browser first
-                        await this.browser.func.closeBrowser(browser, account.email)
+                    // Close current browser first
+                    await this.browser.func.closeBrowser(browser, account.email)
 
-                        // Wait a bit before retry
-                        await this.utils.wait(5000)
+                    // Wait a bit before retry
+                    await this.utils.wait(5000)
 
-                        // Retry with new instance (but limit recursion depth)
-                        await this.Mobile(account, retryCount + 1)
+                    // Retry with new instance (but limit recursion depth)
+                    await this.Mobile(account, retryCount + 1)
                         return
                     } else {
                         log(this.isMobile, 'MAIN', `Max retry limit of ${maxRetries + 1} reached. Mobile search may be incomplete.`, 'warn')

@@ -3,7 +3,7 @@ import { BrowserFingerprintWithHeaders } from 'fingerprint-generator'
 
 import { log } from './Logger'
 
-import { ChromeVersion, EdgeVersion } from '../interface/UserAgentUtil'
+import { ChromeVersion, EdgeVersion } from '../interfaces/UserAgentUtil'
 
 const NOT_A_BRAND_VERSION = '99'
 

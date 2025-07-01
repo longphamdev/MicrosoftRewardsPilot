@@ -1,10 +1,10 @@
 import { Page } from 'rebrowser-playwright'
 import * as fs from 'fs'
-import path from 'path'
+import * as path from 'path'
 
 import { Workers } from '../Workers'
 
-import { MorePromotion, PromotionalItem } from '../../interface/DashboardData'
+import { MorePromotion, PromotionalItem } from '../../interfaces/DashboardData'
 
 
 export class SearchOnBing extends Workers {

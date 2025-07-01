@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 
-import { Config } from '../interface/Config'
+import { Config } from '../interfaces/Config'
 
 export async function Webhook(configData: Config, content: string) {
     const webhook = configData.webhook

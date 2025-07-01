@@ -1,12 +1,12 @@
 import { Page } from 'rebrowser-playwright'
-import readline from 'readline'
+import * as readline from 'readline'
 import * as crypto from 'crypto'
 import { AxiosRequestConfig } from 'axios'
 
-import { MicrosoftRewardsBot } from '../index'
-import { saveSessionData } from '../util/Load'
+import { MicrosoftRewardsBot } from '../src/index'
+import { saveSessionData } from '../utils/Load'
 
-import { OAuth } from '../interface/OAuth'
+import { OAuth } from '../interfaces/OAuth'
 
 
 const rl = readline.createInterface({

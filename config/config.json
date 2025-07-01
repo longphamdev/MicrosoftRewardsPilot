@@ -29,14 +29,14 @@
         "scrollRandomResults": true,
         "clickRandomResults": true,
         "searchDelay": {
-            "min": "45s",
-            "max": "90s"
+            "min": "180s",
+            "max": "360s"
         },
-        "retryMobileSearchAmount": 2,
+        "retryMobileSearchAmount": 0,
         "multiLanguage": {
             "enabled": true,
             "autoDetectLocation": true,
-            "fallbackLanguage": "en",
+            "fallbackLanguage": "ja",
             "supportedLanguages": ["ja", "en", "zh-CN", "ko", "de", "fr", "es"]
         },
         "autoTimezone": {
@@ -46,7 +46,7 @@
             "logChanges": true
         },
         "humanBehavior": {
-            "typingErrorRate": 0.08,
+            "typingErrorRate": 0.12,
             "thinkingPauseEnabled": true,
             "randomScrollEnabled": true,
             "clickRandomEnabled": true,
@@ -55,10 +55,23 @@
             "cautionModeEnabled": true
         },
         "antiDetection": {
-            "dynamicDelayMultiplier": 1.5,
+            "ultraMode": true,
+            "stealthLevel": "ultimate",
+            "dynamicDelayMultiplier": 4.0,
             "progressiveBackoff": true,
-            "maxConsecutiveFailures": 3,
-            "cooldownPeriod": "5min"
+            "maxConsecutiveFailures": 1,
+            "cooldownPeriod": "20min",
+            "sessionSimulation": true,
+            "multitaskingEnabled": true,
+            "behaviorRandomization": true,
+            "timeBasedScheduling": true,
+            "humanErrorSimulation": true,
+            "deepPageInteraction": true,
+            "canvasNoise": true,
+            "sensorDataInjection": true,
+            "networkBehaviorMimic": true,
+            "sessionBreaking": true,
+            "realUserErrors": true
         },
         "chinaRegionAdaptation": {
             "enabled": false,

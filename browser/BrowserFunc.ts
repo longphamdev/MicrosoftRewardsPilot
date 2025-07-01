@@ -2,13 +2,13 @@ import { BrowserContext, Page } from 'rebrowser-playwright'
 import { CheerioAPI, load } from 'cheerio'
 import { AxiosRequestConfig } from 'axios'
 
-import { MicrosoftRewardsBot } from '../index'
-import { saveSessionData } from '../util/Load'
+import { MicrosoftRewardsBot } from '../src/index'
+import { saveSessionData } from '../utils/Load'
 
-import { Counters, DashboardData, MorePromotion, PromotionalItem } from './../interface/DashboardData'
-import { QuizData } from './../interface/QuizData'
-import { AppUserData } from '../interface/AppUserData'
-import { EarnablePoints } from '../interface/Points'
+import { Counters, DashboardData, MorePromotion, PromotionalItem } from './../interfaces/DashboardData'
+import { QuizData } from './../interfaces/QuizData'
+import { AppUserData } from '../interfaces/AppUserData'
+import { EarnablePoints } from '../interfaces/Points'
 
 
 export default class BrowserFunc {
@@ -151,9 +151,9 @@ export default class BrowserFunc {
             }
 
             // Extract the dashboard object from the script content
-            const dashboardData = await this.bot.homePage.evaluate(scriptContent => {
+            const dashboardData = await this.bot.homePage.evaluate((scriptContent: string) => {
                 // Extract the dashboard object using regex
-                const regex = /var dashboard = (\{.*?\});/s
+                const regex = /var dashboard = (\{.*?\});/
                 const match = regex.exec(scriptContent)
 
                 if (match && match[1]) {
@@ -403,7 +403,7 @@ export default class BrowserFunc {
                 return null
             })
 
-            return quizData as QuizData | null
+            return quizData as unknown as QuizData | null
         } catch (error) {
             this.bot.log(this.bot.isMobile, 'GET-QUIZ-DATA-DIRECT', `Direct evaluation failed: ${error}`, 'warn')
             return null
@@ -420,13 +420,13 @@ export default class BrowserFunc {
 
             // 扩展的script数据模式
             const scriptPatterns = [
-                { name: '_w.rewardsQuizRenderInfo', regex: /_w\.rewardsQuizRenderInfo\s*=\s*({.*?});/s },
-                { name: 'rewardsQuizRenderInfo', regex: /rewardsQuizRenderInfo\s*[=:]\s*({.*?});?/s },
-                { name: 'window.rewardsQuizRenderInfo', regex: /window\.rewardsQuizRenderInfo\s*=\s*({.*?});/s },
-                { name: 'Microsoft.Rewards.Quiz', regex: /Microsoft\.Rewards\.Quiz[^=]*=\s*({.*?});/s },
-                { name: 'quiz_data', regex: /quiz_data\s*[=:]\s*({.*?});?/s },
-                { name: 'quizData', regex: /quizData\s*[=:]\s*({.*?});?/s },
-                { name: 'REWARDS_QUIZ_DATA', regex: /REWARDS_QUIZ_DATA\s*[=:]\s*({.*?});?/s }
+                { name: '_w.rewardsQuizRenderInfo', regex: /_w\.rewardsQuizRenderInfo\s*=\s*({.*?});/ },
+                { name: 'rewardsQuizRenderInfo', regex: /rewardsQuizRenderInfo\s*[=:]\s*({.*?});?/ },
+                { name: 'window.rewardsQuizRenderInfo', regex: /window\.rewardsQuizRenderInfo\s*=\s*({.*?});/ },
+                { name: 'Microsoft.Rewards.Quiz', regex: /Microsoft\.Rewards\.Quiz[^=]*=\s*({.*?});/ },
+                { name: 'quiz_data', regex: /quiz_data\s*[=:]\s*({.*?});?/ },
+                { name: 'quizData', regex: /quizData\s*[=:]\s*({.*?});?/ },
+                { name: 'REWARDS_QUIZ_DATA', regex: /REWARDS_QUIZ_DATA\s*[=:]\s*({.*?});?/ }
             ]
 
             let scriptContent = ''
@@ -488,20 +488,20 @@ export default class BrowserFunc {
                         url.includes('/activities/quiz')) {
                         
                         if (typeof response.headers === 'function') {
-                            const headers = response.headers()
-                            const contentType = String(headers['content-type'] || headers['Content-Type'] || '')
+                        const headers = response.headers()
+                        const contentType = String(headers['content-type'] || headers['Content-Type'] || '')
                             if (contentType.includes('application/json') && typeof response.json === 'function') {
-                                const data = await response.json()
-                                
-                                // 验证是否为Quiz数据
-                                if (data && (data.maxQuestions || data.correctAnswer || data.numberOfOptions)) {
-                                    clearTimeout(timeout)
-                                    if (responseHandler) {
-                                        page.off('response', responseHandler)
-                                    }
-                                    this.bot.log(this.bot.isMobile, 'GET-QUIZ-DATA-API', `Quiz data found via API: ${url}`)
-                                    resolve(data as QuizData)
-                                    return
+                            const data = await response.json()
+                            
+                            // 验证是否为Quiz数据
+                            if (data && (data.maxQuestions || data.correctAnswer || data.numberOfOptions)) {
+                                clearTimeout(timeout)
+                                if (responseHandler) {
+                                    page.off('response', responseHandler)
+                                }
+                                this.bot.log(this.bot.isMobile, 'GET-QUIZ-DATA-API', `Quiz data found via API: ${url}`)
+                                resolve(data as QuizData)
+                                return
                                 }
                             }
                         }

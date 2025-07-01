@@ -1,14 +1,14 @@
-import playwright, { BrowserContext, Browser as PlaywrightBrowser } from 'rebrowser-playwright'
+import { chromium, BrowserContext, Browser as PlaywrightBrowser } from 'rebrowser-playwright'
 
 import { newInjectedContext } from 'fingerprint-injector'
 import { FingerprintGenerator } from 'fingerprint-generator'
 
-import { MicrosoftRewardsBot } from '../index'
-import { loadSessionData, saveFingerprintData } from '../util/Load'
-import { updateFingerprintUserAgent } from '../util/UserAgent'
-import { GeoLanguageDetector, GeoLocation } from '../util/GeoLanguage'
+import { MicrosoftRewardsBot } from '../src/index'
+import { loadSessionData, saveFingerprintData } from '../utils/Load'
+import { updateFingerprintUserAgent } from '../utils/UserAgent'
+import { GeoLanguageDetector, GeoLocation } from '../utils/GeoLanguage'
 
-import { AccountProxy } from '../interface/Account'
+import { AccountProxy } from '../interfaces/Account'
 
 // 定义浏览器上下文选项的类型
 interface BrowserContextOptions {
@@ -168,7 +168,7 @@ class Browser {
         // 获取地理位置配置
         const geoConfig = await this.getGeoLocationConfig()
 
-        const browser = await playwright.chromium.launch({
+        const browser = await chromium.launch({
             //channel: 'msedge', // Uses Edge instead of chrome
             headless: this.bot.config.headless,
             ...(proxy.url && { proxy: { username: proxy.username, password: proxy.password, server: `${proxy.url}:${proxy.port}` } }),

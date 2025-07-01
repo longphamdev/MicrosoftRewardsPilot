@@ -1,8 +1,8 @@
 import { Page } from 'rebrowser-playwright'
 
-import { DashboardData, MorePromotion, PromotionalItem, PunchCard } from '../interface/DashboardData'
+import { DashboardData, MorePromotion, PromotionalItem, PunchCard } from '../interfaces/DashboardData'
 
-import { MicrosoftRewardsBot } from '../index'
+import { MicrosoftRewardsBot } from '../src/index'
 
 export class Workers {
     public bot: MicrosoftRewardsBot

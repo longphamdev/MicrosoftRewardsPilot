@@ -1,5 +1,5 @@
-import playwright, { Page } from 'rebrowser-playwright'
-import readline from 'readline'
+import { chromium, Page } from 'rebrowser-playwright'
+import * as readline from 'readline'
 
 /**
  * 移动端2FA验证辅助工具
@@ -293,7 +293,7 @@ class Manual2FAHelper {
 
         console.log(this.strings.startingBrowser)
         
-        const browser = await playwright.chromium.launch({ 
+        const browser = await chromium.launch({ 
             headless: false, // 显示浏览器界面
             args: [
                 '--no-sandbox',

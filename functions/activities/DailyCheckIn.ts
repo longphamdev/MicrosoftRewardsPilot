@@ -3,7 +3,7 @@ import { AxiosRequestConfig } from 'axios'
 
 import { Workers } from '../Workers'
 
-import { DashboardData } from '../../interface/DashboardData'
+import { DashboardData } from '../../interfaces/DashboardData'
 
 
 export class DailyCheckIn extends Workers {

@@ -1,7 +1,7 @@
 import { Page } from 'rebrowser-playwright'
 import { load } from 'cheerio'
 
-import { MicrosoftRewardsBot } from '../index'
+import { MicrosoftRewardsBot } from '../src/index'
 
 
 export default class BrowserUtil {

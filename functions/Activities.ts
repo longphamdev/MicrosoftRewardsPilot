@@ -1,6 +1,6 @@
 import { Page } from 'rebrowser-playwright'
 
-import { MicrosoftRewardsBot } from '../index'
+import { MicrosoftRewardsBot } from '../src/index'
 
 import { Search } from './activities/Search'
 import { ABC } from './activities/ABC'
@@ -12,7 +12,7 @@ import { SearchOnBing } from './activities/SearchOnBing'
 import { ReadToEarn } from './activities/ReadToEarn'
 import { DailyCheckIn } from './activities/DailyCheckIn'
 
-import { DashboardData, MorePromotion, PromotionalItem } from '../interface/DashboardData'
+import { DashboardData, MorePromotion, PromotionalItem } from '../interfaces/DashboardData'
 
 
 export default class Activities {

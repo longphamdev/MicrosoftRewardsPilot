@@ -1,11 +1,11 @@
 import { BrowserContext, Cookie } from 'rebrowser-playwright'
 import { BrowserFingerprintWithHeaders } from 'fingerprint-generator'
-import fs from 'fs'
-import path from 'path'
+import * as fs from 'fs'
+import * as path from 'path'
 
 
-import { Account } from '../interface/Account'
-import { Config, ConfigSaveFingerprint } from '../interface/Config'
+import { Account } from '../interfaces/Account'
+import { Config, ConfigSaveFingerprint } from '../interfaces/Config'
 
 // 缓存管理
 let configCache: Config | null = null
@@ -94,14 +94,14 @@ function initFileWatching(): void {
 
     // 获取文件路径
     if (!configFilePath) {
-        configFilePath = path.join(__dirname, '../', 'config.json')
+        configFilePath = path.join(__dirname, '../config/', 'config.json')
     }
     if (!accountsFilePath) {
         let file = 'accounts.json'
         if (process.argv.includes('-dev')) {
             file = 'accounts.dev.json'
         }
-        accountsFilePath = path.join(__dirname, '../', file)
+        accountsFilePath = path.join(__dirname, '../config/', file)
     }
 
     // 创建防抖的重新加载函数
@@ -149,7 +149,7 @@ export function loadAccounts(): Account[] {
             file = 'accounts.dev.json'
         }
 
-        const accountDir = path.join(__dirname, '../', file)
+        const accountDir = path.join(__dirname, '../config/', file)
         accountsFilePath = accountDir // 缓存路径
 
         // 检查文件是否存在
@@ -188,7 +188,7 @@ export function loadConfig(): Config {
             return configCache
         }
 
-        const configDir = path.join(__dirname, '../', 'config.json')
+        const configDir = path.join(__dirname, '../config/', 'config.json')
         configFilePath = configDir // 缓存路径
 
         // 检查文件是否存在

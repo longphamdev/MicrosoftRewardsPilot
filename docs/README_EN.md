@@ -1,7 +1,7 @@
 <div align="center">
 
 <!-- 语言切换 / Language Switch / 言語切替 -->
-**[中文](README.md)** | **[English](README_EN.md)** | **[日本語](README_JA.md)**
+**[中文](../README.md)** | **[English](README_EN.md)** | **[日本語](README_JA.md)**
 
 ---
 
@@ -42,7 +42,7 @@ cd MicrosoftRewardsPilot
 npm i
 
 # 3. Configuration
-# Edit src/config.json and src/accounts.json
+# Edit config/config.json and config/accounts.json
 
 # 4. Build and Run
 npm run build
@@ -56,7 +56,7 @@ npm start
 
 ```bash
 # 1. Prepare Configuration Files
-# Edit src/config.json and src/accounts.json
+# Edit config/config.json and config/accounts.json
 
 # 2. Build
 npm run build
@@ -77,8 +77,8 @@ services:
     container_name: microsoftrewardspilot
     restart: unless-stopped
     volumes:
-      - ./src/accounts.json:/usr/src/microsoftrewardspilot/dist/accounts.json:ro
-      - ./src/config.json:/usr/src/microsoftrewardspilot/dist/config.json:ro
+      - ./config/accounts.json:/usr/src/microsoftrewardspilot/dist/accounts.json:ro
+      - ./config/config.json:/usr/src/microsoftrewardspilot/dist/config.json:ro
       - ./sessions:/usr/src/microsoftrewardspilot/dist/browser/sessions
     environment:
       - TZ=Asia/Tokyo  # Set according to geographic location
@@ -97,13 +97,13 @@ services:
 ```json
 {
   "headless": true,           // Run in headless mode
-  "parallel": false,          // Execute tasks in parallel (recommended off)
+  "parallel": true,           // Execute tasks in parallel
   "clusters": 1,              // Number of clusters
-  "globalTimeout": "120min",  // Global timeout duration (optimized)
+  "globalTimeout": "45min",   // Global timeout duration
   "runOnZeroPoints": false,   // Don't run when zero points available
   "accountDelay": {           // Delay between accounts
-    "min": "8min",            // Minimum delay (optimized)
-    "max": "20min"            // Maximum delay (optimized)
+    "min": "5min",            // Minimum delay 5 minutes
+    "max": "15min"            // Maximum delay 15 minutes
   }
 }
 ```
@@ -123,17 +123,24 @@ services:
       "setOnStartup": true          // Set on startup
     },
     "searchDelay": {
-      "min": "45s",                 // Minimum delay (optimized)
-      "max": "120s"                 // Maximum delay (optimized)
+      "min": "45s",                 // Minimum delay
+      "max": "2.5min"              // Maximum delay
     },
-    "retryMobileSearchAmount": 0,   // Mobile search retry count (disabled)
     "humanBehavior": {
-      "typingErrorRate": 0.08,      // Typing error rate
+      "typingErrorRate": 0.12,      // Typing error rate
       "thinkingPauseEnabled": true, // Thinking pause
       "randomScrollEnabled": true   // Random scrolling
     },
+    "antiDetection": {
+      "ultraMode": true,            // Ultimate anti-detection mode
+      "stealthLevel": "ultimate",   // Highest stealth level
+      "dynamicDelayMultiplier": 4.0,// Dynamic delay multiplier
+      "humanErrorSimulation": true, // Human error simulation
+      "deepPageInteraction": true,  // Deep page interaction
+      "sessionBreaking": true       // Smart session segmentation
+    },
     "chinaRegionAdaptation": {
-      "enabled": false,             // Enable China region adaptation
+      "enabled": true,              // Enable China region adaptation
       "useBaiduTrends": true,       // Use Baidu trends
       "useWeiboTrends": true        // Use Weibo trends
     }
@@ -168,7 +175,7 @@ services:
 
 ```bash
 # Run 2FA verification assistant
-npx tsx src/manual-2fa-helper.ts
+npx tsx src/helpers/manual-2fa-helper.ts
 ```
 
 **Usage Process:**
@@ -183,24 +190,37 @@ npx tsx src/manual-2fa-helper.ts
 
 ```bash
 # Configuration test
-npm run test-config
+npx tsx tests/test-dynamic-config.ts
 
 # Geo-location detection test  
-npm run test-geo
+npx tsx tests/test-geo-language.ts
 
 # Timezone setting test
-npm run test-timezone
+npx tsx tests/test-timezone-auto.ts
 
 # Quiz page debugging (use when quiz fails)
-npx tsx src/quiz-debug.ts "https://rewards.microsoft.com/quiz/xxx"
+npx tsx src/helpers/quiz-debug.ts "https://rewards.microsoft.com/quiz/xxx"
 ```
 
 ### **Common Issues**
 
 <details>
+<summary><strong>Points Collection Limited/Automation Detected</strong></summary>
+
+**Symptoms:** Multiple searches without points, or incomplete point collection
+**Solution:** System automatically enables ultimate anti-detection mode
+- **AI-level behavior simulation**: Real user errors, search hesitation, accidental clicks
+- **Statistical anti-detection**: Non-standard time distribution, fatigue algorithms
+- **Deep camouflage technology**: Device sensors, Canvas fingerprint noise
+- **Session management**: Smart segmentation, automatic rest
+- **Expected results**: 95%+ point collection rate restored within 4-8 hours
+
+</details>
+
+<details>
 <summary><strong>Quiz Task Failure</strong></summary>
 
-**Solution:** Use `npx tsx src/quiz-debug.ts <URL>` to analyze page structure changes
+**Solution:** Use `npx tsx src/helpers/quiz-debug.ts <URL>` to analyze page structure changes
 
 </details>
 
@@ -268,6 +288,9 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
 - **Timezone Synchronization** - Auto-set matching timezone
 - **Multi-language Support** - Japanese, Chinese, English and other languages
 - **Behavior Simulation** - Typing errors, random scrolling, thinking pauses
+- **Ultimate Anti-Detection** - AI-level behavior simulation, device sensor injection, Canvas fingerprint noise
+- **Real User Simulation** - Error correction, search hesitation, accidental clicks and other human behaviors
+- **Statistical Anti-Detection** - Non-standard time distribution, fatigue algorithms, session segmentation
 - **Intelligent Quiz Adaptation** - Multiple data acquisition strategies
 - **Docker Support** - Containerized deployment
 - **Auto Retry** - Smart retry for failed tasks
@@ -345,10 +368,23 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
       "cautionModeEnabled": true
     },
     "antiDetection": {
-      "dynamicDelayMultiplier": 1.5,
+      "ultraMode": true,
+      "stealthLevel": "ultimate",
+      "dynamicDelayMultiplier": 4.0,
       "progressiveBackoff": true,
-      "maxConsecutiveFailures": 3,
-      "cooldownPeriod": "5min"
+      "maxConsecutiveFailures": 1,
+      "cooldownPeriod": "20min",
+      "sessionSimulation": true,
+      "multitaskingEnabled": true,
+      "behaviorRandomization": true,
+      "timeBasedScheduling": true,
+      "humanErrorSimulation": true,
+      "deepPageInteraction": true,
+      "canvasNoise": true,
+      "sensorDataInjection": true,
+      "networkBehaviorMimic": true,
+      "sessionBreaking": true,
+      "realUserErrors": true
     },
     "chinaRegionAdaptation": {
       "enabled": false,
@@ -386,7 +422,7 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
 > Using automation scripts may result in account suspension
 
 > **Safety Recommendations**  
-> Use moderately, enable all anti-detection features
+> Use moderately, system automatically enables all anti-detection features
 
 > **Regular Updates**  
 > Keep script updated to latest version

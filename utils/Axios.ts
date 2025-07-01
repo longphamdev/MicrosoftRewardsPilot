@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { SocksProxyAgent } from 'socks-proxy-agent'
-import { AccountProxy } from '../interface/Account'
+import { AccountProxy } from '../interfaces/Account'
 
 class AxiosClient {
     private instance: AxiosInstance

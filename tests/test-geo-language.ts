@@ -1,4 +1,4 @@
-import { GeoLanguageDetector } from './util/GeoLanguage'
+import { GeoLanguageDetector } from '../utils/GeoLanguage'
 
 async function testGeoLanguageDetection() {
     console.log('=== 地理位置和语言检测测试开始 ===\n')

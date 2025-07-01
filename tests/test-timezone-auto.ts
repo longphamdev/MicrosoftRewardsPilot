@@ -1,5 +1,5 @@
-import { GeoLanguageDetector } from './util/GeoLanguage'
-import { StartupConfig } from './util/StartupConfig'
+import { GeoLanguageDetector } from '../utils/GeoLanguage'
+import { StartupConfig } from '../utils/StartupConfig'
 
 // 定义StartupSummary类型（与StartupConfig中的类型一致）
 interface StartupSummaryTimezone {

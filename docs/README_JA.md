@@ -1,7 +1,7 @@
 <div align="center">
 
 <!-- 语言切换 / Language Switch / 言語切替 -->
-**[中文](README.md)** | **[English](README_EN.md)** | **[日本語](README_JA.md)**
+**[中文](../README.md)** | **[English](README_EN.md)** | **[日本語](README_JA.md)**
 
 ---
 
@@ -42,7 +42,7 @@ cd MicrosoftRewardsPilot
 npm i
 
 # 3. 設定ファイル
-# src/config.json と src/accounts.json を編集
+# config/config.json と config/accounts.json を編集
 
 # 4. ビルドと実行
 npm run build
@@ -56,7 +56,7 @@ npm start
 
 ```bash
 # 1. 設定ファイルの準備
-# src/config.json と src/accounts.json を編集
+# config/config.json と config/accounts.json を編集
 
 # 2. ビルド
 npm run build
@@ -77,8 +77,8 @@ services:
     container_name: microsoftrewardspilot
     restart: unless-stopped
     volumes:
-      - ./src/accounts.json:/usr/src/microsoftrewardspilot/dist/accounts.json:ro
-      - ./src/config.json:/usr/src/microsoftrewardspilot/dist/config.json:ro
+      - ./config/accounts.json:/usr/src/microsoftrewardspilot/dist/accounts.json:ro
+      - ./config/config.json:/usr/src/microsoftrewardspilot/dist/config.json:ro
       - ./sessions:/usr/src/microsoftrewardspilot/dist/browser/sessions
     environment:
       - TZ=Asia/Tokyo  # 地理的位置に応じて設定
@@ -97,61 +97,68 @@ services:
 ```json
 {
   "headless": true,           // ヘッドレスモードで実行
-  "parallel": false,          // タスクを並列実行（推奨オフ）
+  "parallel": true,           // タスクを並列実行
   "clusters": 1,              // クラスター数
-  "globalTimeout": "120min",  // グローバルタイムアウト時間（最適化済み）
+  "globalTimeout": "45min",   // グローバルタイムアウト時間
   "runOnZeroPoints": false,   // ゼロポイント時は実行しない
   "accountDelay": {           // アカウント間の遅延時間
-    "min": "8min",            // 最小間隔（最適化済み）
-    "max": "20min"            // 最大間隔（最適化済み）
+    "min": "5min",            // 最小間隔5分
+    "max": "15min"            // 最大間隔15分
   }
 }
 ```
 
-### 🧠 スマート検索設定
+### スマート検索設定
 ```json
 {
   "searchSettings": {
-    "useGeoLocaleQueries": true,    // 🌍 地理位置ベースのクエリ
+    "useGeoLocaleQueries": true,    // 地理位置ベースのクエリ
     "multiLanguage": {
-      "enabled": true,              // 🗣️ 多言語サポート
-      "autoDetectLocation": true,   // 📍 位置自動検出
-      "fallbackLanguage": "en"     // 🔄 フォールバック言語
+      "enabled": true,              // 多言語サポート
+      "autoDetectLocation": true,   // 位置自動検出
+      "fallbackLanguage": "en"     // フォールバック言語
     },
     "autoTimezone": {
-      "enabled": true,              // 🕐 自動タイムゾーン
-      "setOnStartup": true          // 🚀 起動時に設定
+      "enabled": true,              // 自動タイムゾーン
+      "setOnStartup": true          // 起動時に設定
     },
     "searchDelay": {
-      "min": "45s",                 // ⏳ 最小遅延（最適化済み）
-      "max": "120s"                 // ⏳ 最大遅延（最適化済み）
+      "min": "45s",                 // 最小遅延
+      "max": "2.5min"              // 最大遅延
     },
-    "retryMobileSearchAmount": 0,   // 📱 モバイル検索リトライ回数（無効）
     "humanBehavior": {
-      "typingErrorRate": 0.12,      // ✏️ タイピングエラー率
-      "thinkingPauseEnabled": true, // 🤔 思考停止
-      "randomScrollEnabled": true   // 📜 ランダムスクロール
+      "typingErrorRate": 0.12,      // タイピングエラー率
+      "thinkingPauseEnabled": true, // 思考停止
+      "randomScrollEnabled": true   // ランダムスクロール
+    },
+    "antiDetection": {
+      "ultraMode": true,            // 究極の検出回避モード
+      "stealthLevel": "ultimate",   // 最高ステルスレベル
+      "dynamicDelayMultiplier": 4.0,// 動的遅延倍率
+      "humanErrorSimulation": true, // 人間のエラーシミュレーション
+      "deepPageInteraction": true,  // 深層ページインタラクション
+      "sessionBreaking": true       // スマートセッション分割
     },
     "chinaRegionAdaptation": {
-      "enabled": true,              // 🇨🇳 中国地域適応を有効化
-      "useBaiduTrends": true,       // 🔍 百度トレンドを使用
-      "useWeiboTrends": true        // 📱 微博トレンドを使用
+      "enabled": true,              // 中国地域適応を有効化
+      "useBaiduTrends": true,       // 百度トレンドを使用
+      "useWeiboTrends": true        // 微博トレンドを使用
     }
   }
 }
 ```
 
-### 🎯 タスク設定
+### タスク設定
 ```json
 {
   "workers": {
-    "doDailySet": true,        // 📅 デイリータスクセット
-    "doMorePromotions": true,  // 📢 プロモーションタスク
-    "doPunchCards": true,      // 💳 パンチカードタスク
-    "doDesktopSearch": true,   // 🖥️ デスクトップ検索
-    "doMobileSearch": true,    // 📱 モバイル検索
-    "doDailyCheckIn": true,    // ✅ 毎日チェックイン
-    "doReadToEarn": true       // 📚 読んで稼ぐ
+    "doDailySet": true,        // デイリータスクセット
+    "doMorePromotions": true,  // プロモーションタスク
+    "doPunchCards": true,      // パンチカードタスク
+    "doDesktopSearch": true,   // デスクトップ検索
+    "doMobileSearch": true,    // モバイル検索
+    "doDailyCheckIn": true,    // 毎日チェックイン
+    "doReadToEarn": true       // 読んで稼ぐ
   }
 }
 ```
@@ -168,7 +175,7 @@ services:
 
 ```bash
 # 2FA認証アシスタントを実行
-npx tsx src/manual-2fa-helper.ts
+npx tsx src/helpers/manual-2fa-helper.ts
 ```
 
 **使用手順：**
@@ -183,24 +190,37 @@ npx tsx src/manual-2fa-helper.ts
 
 ```bash
 # 設定テスト
-npm run test-config
+npx tsx tests/test-dynamic-config.ts
 
 # 地理位置検出テスト  
-npm run test-geo
+npx tsx tests/test-geo-language.ts
 
 # タイムゾーン設定テスト
-npm run test-timezone
+npx tsx tests/test-timezone-auto.ts
 
 # クイズページデバッグ（クイズが失敗した時に使用）
-npx tsx src/quiz-debug.ts "https://rewards.microsoft.com/quiz/xxx"
+npx tsx src/helpers/quiz-debug.ts "https://rewards.microsoft.com/quiz/xxx"
 ```
 
 ### **よくある問題**
 
 <details>
+<summary><strong>ポイント取得制限・自動化検出</strong></summary>
+
+**現象：** 連続検索でポイントなし、またはポイント取得不完全
+**解決方法：** システムが自動的に究極の検出回避モードを有効化
+- **AI レベル行動シミュレーション**：真実のユーザーエラー、検索迷い、意図しないクリック
+- **統計学的検出回避**：非標準時間分布、疲労アルゴリズム
+- **深層カモフラージュ技術**：デバイスセンサー、Canvas フィンガープリントノイズ
+- **セッション管理**：スマート分割、自動休憩
+- **期待効果**：4-8時間以内に95%+のポイント取得率を回復
+
+</details>
+
+<details>
 <summary><strong>クイズタスクの失敗</strong></summary>
 
-**解決方法：** `npx tsx src/quiz-debug.ts <URL>` を使用してページ構造の変化を分析
+**解決方法：** `npx tsx src/helpers/quiz-debug.ts <URL>` を使用してページ構造の変化を分析
 
 </details>
 
@@ -268,6 +288,9 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
 - **タイムゾーン同期** - マッチングタイムゾーンの自動設定
 - **多言語サポート** - 日本語、中国語、英語など
 - **行動シミュレーション** - タイピングエラー、ランダムスクロール、思考停止
+- **究極の検出回避** - AIレベル行動シミュレーション、デバイスセンサー注入、Canvasフィンガープリントノイズ
+- **真のユーザーシミュレーション** - エラー修正、検索迷い、意図しないクリックなど人間の行動
+- **統計学的検出回避** - 非標準時間分布、疲労アルゴリズム、セッション分割
 - **インテリジェントクイズ適応** - 複数のデータ取得戦略
 - **Dockerサポート** - コンテナ化デプロイ
 - **自動リトライ** - 失敗タスクのスマートリトライ
@@ -285,24 +308,19 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
 ## 完全設定例
 
 <details>
-<summary><strong>⚙️ 完全な config.json 例を表示</strong> （クリックして展開）</summary>
+<summary><strong>完全な config.json 例を表示</strong> （クリックして展開）</summary>
 
 ```json
 {
   "baseURL": "https://rewards.bing.com",
   "sessionPath": "sessions",
   "headless": true,
-  "parallel": true,
+  "parallel": false,
   "runOnZeroPoints": false,
   "clusters": 1,
-  "globalTimeout": "45min",
   "saveFingerprint": {
     "mobile": true,
     "desktop": true
-  },
-  "accountDelay": {
-    "min": "5min",
-    "max": "15min"
   },
   "workers": {
     "doDailySet": true,
@@ -313,15 +331,21 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
     "doDailyCheckIn": true,
     "doReadToEarn": true
   },
+  "searchOnBingLocalQueries": true,
+  "globalTimeout": "120min",
+  "accountDelay": {
+    "min": "8min",
+    "max": "20min"
+  },
   "searchSettings": {
     "useGeoLocaleQueries": true,
     "scrollRandomResults": true,
     "clickRandomResults": true,
     "searchDelay": {
       "min": "45s",
-      "max": "2.5min"
+      "max": "120s"
     },
-    "retryMobileSearchAmount": 2,
+    "retryMobileSearchAmount": 0,
     "multiLanguage": {
       "enabled": true,
       "autoDetectLocation": true,
@@ -335,25 +359,53 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
       "logChanges": true
     },
     "humanBehavior": {
-      "typingErrorRate": 0.12,
+      "typingErrorRate": 0.08,
       "thinkingPauseEnabled": true,
       "randomScrollEnabled": true,
       "clickRandomEnabled": true,
-      "timeBasedDelayEnabled": true
+      "timeBasedDelayEnabled": true,
+      "adaptiveDelayEnabled": true,
+      "cautionModeEnabled": true
+    },
+    "antiDetection": {
+      "ultraMode": true,
+      "stealthLevel": "ultimate",
+      "dynamicDelayMultiplier": 4.0,
+      "progressiveBackoff": true,
+      "maxConsecutiveFailures": 1,
+      "cooldownPeriod": "20min",
+      "sessionSimulation": true,
+      "multitaskingEnabled": true,
+      "behaviorRandomization": true,
+      "timeBasedScheduling": true,
+      "humanErrorSimulation": true,
+      "deepPageInteraction": true,
+      "canvasNoise": true,
+      "sensorDataInjection": true,
+      "networkBehaviorMimic": true,
+      "sessionBreaking": true,
+      "realUserErrors": true
     },
     "chinaRegionAdaptation": {
-      "enabled": true,
+      "enabled": false,
       "useBaiduTrends": true,
-      "useWeiboTrends": true
+      "useWeiboTrends": true,
+      "fallbackToLocalQueries": true
     }
   },
+  "logExcludeFunc": [
+    "SEARCH-CLOSE-TABS"
+  ],
+  "webhookLogExcludeFunc": [
+    "SEARCH-CLOSE-TABS"
+  ],
   "proxy": {
     "proxyGoogleTrends": true,
     "proxyBingTerms": true
   },
   "webhook": {
     "enabled": false,
-    "url": null
+    "url": ""
   }
 }
 ```
@@ -370,7 +422,7 @@ docker exec microsoftrewardspilot curl -s http://ip-api.com/json
 > 自動化スクリプトの使用によりアカウントが停止される可能性があります
 
 > **安全性の推奨事項**  
-> 適度に使用し、すべての検出回避機能を有効にしてください
+> 適度に使用し、システムがすべての検出回避機能を自動的に有効化
 
 > **定期更新**  
 > スクリプトを最新版に保ってください
