@@ -1,21 +1,22 @@
 import cluster from 'cluster'
-import { Page } from 'rebrowser-playwright'
+import { Page, BrowserContext } from 'rebrowser-playwright'
 
-import Browser from './browser/Browser'
-import BrowserFunc from './browser/BrowserFunc'
-import BrowserUtil from './browser/BrowserUtil'
+import Browser from '../browser/Browser'
+import BrowserFunc from '../browser/BrowserFunc'
+import BrowserUtil from '../browser/BrowserUtil'
 
-import { log } from './util/Logger'
-import Util from './util/Utils'
-import { loadAccounts, loadConfig, saveSessionData, refreshAllConfigs } from './util/Load'
+import { log } from '../utils/Logger'
+import Util from '../utils/Utils'
+import { loadAccounts, loadConfig, saveSessionData, refreshAllConfigs } from '../utils/Load'
 
-import { Login } from './functions/Login'
-import { Workers } from './functions/Workers'
-import Activities from './functions/Activities'
+import { Login } from '../functions/Login'
+import { Workers } from '../functions/Workers'
+import Activities from '../functions/Activities'
 
-import { Account } from './interface/Account'
-import Axios from './util/Axios'
-import { TwoFactorAuthRequiredError, AccountLockedError } from './interface/Errors'
+import { Account } from '../interfaces/Account'
+import { DashboardData } from '../interfaces/DashboardData'
+import Axios from '../utils/Axios'
+import { TwoFactorAuthRequiredError, AccountLockedError } from '../interfaces/Errors'
 
 
 // Main bot class
@@ -41,8 +42,7 @@ export class MicrosoftRewardsBot {
     private login = new Login(this)
     private accessToken: string = ''
 
-    //@ts-expect-error Will be initialized later
-    public axios: Axios
+    public axios!: Axios
 
     constructor(isMobile: boolean) {
         this.isMobile = isMobile
@@ -152,7 +152,7 @@ export class MicrosoftRewardsBot {
                 // 添加账户间的延迟，避免请求过于频繁
                 if (i < accounts.length - 1) {
                     // 使用配置文件中的延迟设置，如果没有则使用默认值
-                    const accountDelayConfig = this.config.accountDelay || { min: "5min", max: "15min" }
+                    const accountDelayConfig = this.config.accountDelay || { min: '5min', max: '15min' }
                     const minDelay = this.utils.stringToMs(accountDelayConfig.min)
                     const maxDelay = this.utils.stringToMs(accountDelayConfig.max)
                     const delayMs = this.utils.randomNumber(minDelay, maxDelay)
@@ -160,13 +160,20 @@ export class MicrosoftRewardsBot {
                     log('main', 'MAIN-WORKER', `⏱️ Waiting ${Math.round(delayMs/60000)} minutes before processing next account...`)
                     log('main', 'MAIN-WORKER', `Next account will start at: ${new Date(Date.now() + delayMs).toLocaleTimeString()}`)
                     
-                    // 显示倒计时
+                    // 显示倒计时 - 每5分钟显示一次，避免频繁刷屏
+                    let lastDisplayTime = 0
                     const countdownInterval = setInterval(() => {
                         const remaining = delayMs - (Date.now() - startTime)
+                        const currentTime = Date.now()
+                        
                         if (remaining > 0) {
-                            process.stdout.write(`\r⏳ Time remaining: ${Math.round(remaining/60000)} minutes...`)
+                            // 每5分钟显示一次，或者是第一次显示
+                            if (currentTime - lastDisplayTime >= 300000 || lastDisplayTime === 0) {
+                                console.log(`⏳ Time remaining: ${Math.round(remaining/60000)} minutes...`)
+                                lastDisplayTime = currentTime
+                            }
                         }
-                    }, 10000)  // 每10秒更新一次
+                    }, 60000)  // 每1分钟检查一次，但只在满足条件时显示
                     
                     const startTime = Date.now()
                     await this.utils.wait(delayMs)
@@ -197,7 +204,7 @@ export class MicrosoftRewardsBot {
         }
 
         // 报告最终结果
-        log('main', 'MAIN-SUMMARY', `Task execution completed:`, 'log', 'cyan')
+        log('main', 'MAIN-SUMMARY', 'Task execution completed:', 'log', 'cyan')
         log('main', 'MAIN-SUMMARY', `✅ Successful accounts: ${completedAccounts}/${accounts.length}`, 'log', 'green')
         log('main', 'MAIN-SUMMARY', `❌ Failed accounts: ${failedAccounts}/${accounts.length}`, 'log', failedAccounts > 0 ? 'yellow' : 'green')
         
@@ -384,7 +391,7 @@ export class MicrosoftRewardsBot {
     /**
      * 执行Desktop任务
      */
-    private async executeDesktopTasks(workerPage: any, data: any): Promise<void> {
+    private async executeDesktopTasks(workerPage: Page, data: DashboardData): Promise<void> {
         const tasks = [
             {
                 name: 'Daily Set',
@@ -427,7 +434,10 @@ export class MicrosoftRewardsBot {
 
     // Mobile
     async Mobile(account: Account, retryCount = 0): Promise<void> {
-        const maxRetries = this.config.searchSettings?.retryMobileSearchAmount || 2
+        // 正确读取重试设置，支持0值
+        const maxRetries = this.config.searchSettings?.retryMobileSearchAmount !== undefined 
+            ? this.config.searchSettings.retryMobileSearchAmount 
+            : 2
         let browser
 
         try {
@@ -490,7 +500,7 @@ export class MicrosoftRewardsBot {
             if (this.config.workers.doMobileSearch) {
                 try {
                     log(this.isMobile, 'MOBILE-TASK', 'Starting Mobile Search...')
-                await this.performMobileSearches(browser, data, account, retryCount)
+                await this.performMobileSearches(browser, data, account, retryCount, maxRetries)
                     log(this.isMobile, 'MOBILE-TASK', '✅ Completed Mobile Search')
                 } catch (error) {
                     log(this.isMobile, 'MOBILE-TASK', `❌ Mobile Search failed: ${error}`, 'error')
@@ -535,13 +545,18 @@ export class MicrosoftRewardsBot {
     /**
      * 执行Mobile搜索任务
      */
-    private async performMobileSearches(browser: any, data: any, account: Account, retryCount: number): Promise<void> {
-        const maxRetries = this.config.searchSettings?.retryMobileSearchAmount || 2
-
+    private async performMobileSearches(browser: BrowserContext, data: DashboardData, account: Account, retryCount: number, maxRetries: number): Promise<void> {
         // If no mobile searches data found, stop (Does not always exist on new accounts)
         if (!data.userStatus.counters.mobileSearch) {
             log(this.isMobile, 'MAIN', 'Unable to fetch search points, your account is most likely too "new" for this! Try again later!', 'warn')
             return
+        }
+
+        // 记录初始搜索积分状态
+        const initialMobileSearchPoints = data.userStatus.counters.mobileSearch[0]
+        if (initialMobileSearchPoints) {
+            const remainingPoints = initialMobileSearchPoints.pointProgressMax - initialMobileSearchPoints.pointProgress
+            log(this.isMobile, 'MOBILE-SEARCH-INITIAL', `Initial mobile search status: ${initialMobileSearchPoints.pointProgress}/${initialMobileSearchPoints.pointProgressMax} points (${remainingPoints} remaining)`)
         }
 
         // Open a new tab to where the tasks are going to be completed
@@ -551,15 +566,35 @@ export class MicrosoftRewardsBot {
             // Go to homepage on worker page
             await this.browser.func.goHome(workerPage)
 
+            log(this.isMobile, 'MOBILE-SEARCH-START', 'Starting mobile search execution...')
             await this.activities.doSearch(workerPage, data)
+            log(this.isMobile, 'MOBILE-SEARCH-END', 'Mobile search execution completed')
 
-            // Fetch current search points
-            const mobileSearchPoints = (await this.browser.func.getSearchPoints()).mobileSearch?.[0]
+            // 等待一段时间让积分更新
+            await this.utils.wait(3000)
 
-            if (mobileSearchPoints && (mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress) > 0) {
-                // Still have points to earn, check if we should retry
+            // Fetch current search points with enhanced checking
+            log(this.isMobile, 'MOBILE-SEARCH-CHECK', 'Checking mobile search completion status...')
+            const currentSearchCounters = await this.browser.func.getSearchPoints()
+            const mobileSearchPoints = currentSearchCounters.mobileSearch?.[0]
+
+            if (mobileSearchPoints) {
+                const remainingPoints = mobileSearchPoints.pointProgressMax - mobileSearchPoints.pointProgress
+                log(this.isMobile, 'MOBILE-SEARCH-STATUS', `Final mobile search status: ${mobileSearchPoints.pointProgress}/${mobileSearchPoints.pointProgressMax} points (${remainingPoints} remaining)`)
+
+                // 检查是否还有剩余积分
+                if (remainingPoints > 0) {
+                    // 如果重试次数为0，直接报告完成状态而不重试
+                    if (maxRetries === 0) {
+                        log(this.isMobile, 'MOBILE-SEARCH-INCOMPLETE', `Mobile search incomplete: ${remainingPoints} points remaining, but retries disabled (retryMobileSearchAmount: 0)`, 'warn')
+                        log(this.isMobile, 'MOBILE-SEARCH-SUGGESTION', 'To enable retries, set "retryMobileSearchAmount" to a value > 0 in config.json', 'warn')
+                        return
+                    }
+
+                    // 如果还在重试范围内
                 if (retryCount < maxRetries) {
                     log(this.isMobile, 'MAIN', `Mobile search incomplete (attempt ${retryCount + 1}/${maxRetries + 1}). Retrying with new browser...`, 'log', 'yellow')
+                        log(this.isMobile, 'MOBILE-SEARCH-RETRY', `${remainingPoints} points still need to be earned`, 'warn')
 
                     // Close current browser first
                     await this.browser.func.closeBrowser(browser, account.email)
@@ -569,11 +604,16 @@ export class MicrosoftRewardsBot {
 
                     // Retry with new instance (but limit recursion depth)
                     await this.Mobile(account, retryCount + 1)
+                        return
+                    } else {
+                        log(this.isMobile, 'MAIN', `Max retry limit of ${maxRetries + 1} reached. Mobile search may be incomplete.`, 'warn')
+                        log(this.isMobile, 'MOBILE-SEARCH-FINAL', `${remainingPoints} points were not earned after ${maxRetries + 1} attempts`, 'warn')
+                    }
                 } else {
-                    log(this.isMobile, 'MAIN', `Max retry limit of ${maxRetries + 1} reached. Mobile search may be incomplete.`, 'warn')
+                    log(this.isMobile, 'MAIN', 'Mobile searches completed successfully - all points earned!', 'log', 'green')
                 }
             } else {
-                log(this.isMobile, 'MAIN', 'Mobile searches completed successfully', 'log', 'green')
+                log(this.isMobile, 'MOBILE-SEARCH-ERROR', 'Unable to verify mobile search completion - no mobile search data found', 'warn')
             }
 
         } catch (error) {
