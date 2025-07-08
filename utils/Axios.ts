@@ -21,17 +21,33 @@ class AxiosClient {
     }
 
     private getAgentForProxy(proxyConfig: AccountProxy): HttpProxyAgent<string> | HttpsProxyAgent<string> | SocksProxyAgent {
-        const { url, port } = proxyConfig
+        const { url, port, username, password } = proxyConfig
+
+        // 构建代理URL，包含认证信息（如果提供的话）
+        let proxyUrl = `${url}:${port}`
+        if (username && password) {
+            // 提取协议
+            const urlParts = url.split('://')
+            if (urlParts.length === 2) {
+                const protocol = urlParts[0]
+                const hostPart = urlParts[1]
+                proxyUrl = `${protocol}://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${hostPart}:${port}`
+            } else {
+                // 如果没有协议，默认使用 http
+                proxyUrl = `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${url}:${port}`
+            }
+        }
 
         switch (true) {
-            case proxyConfig.url.startsWith('http'):
-                return new HttpProxyAgent(`${url}:${port}`)
-            case proxyConfig.url.startsWith('https'):
-                return new HttpsProxyAgent(`${url}:${port}`)
+            case proxyConfig.url.startsWith('http://'):
+                return new HttpProxyAgent(proxyUrl)
+            case proxyConfig.url.startsWith('https://'):
+                return new HttpsProxyAgent(proxyUrl)
             case proxyConfig.url.startsWith('socks'):
-                return new SocksProxyAgent(`${url}:${port}`)
+                return new SocksProxyAgent(proxyUrl)
             default:
-                throw new Error(`Unsupported proxy protocol: ${url}`)
+                // 默认使用 HTTP 代理
+                return new HttpProxyAgent(proxyUrl)
         }
     }
 
