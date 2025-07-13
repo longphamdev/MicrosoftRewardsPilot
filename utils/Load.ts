@@ -20,7 +20,7 @@ let accountsFilePath: string | null = null
  * 防抖函数
  */
 function debounce(func: () => void, delay: number): () => void {
-    let timeoutId: NodeJS.Timeout | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     return () => {
         if (timeoutId) {
             clearTimeout(timeoutId)
